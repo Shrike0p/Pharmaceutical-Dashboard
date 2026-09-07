@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "noEmit": true,
+    // The Prisma 7 client generator emits imports carrying explicit `.ts`
+    // extensions, which tsx/tsup resolve natively.
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "prisma/**/*.ts", "*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

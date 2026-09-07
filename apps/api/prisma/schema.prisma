@@ -1,0 +1,132 @@
+// Equipment Cleaning Log — data model
+//
+// Tables and columns are mapped to snake_case because that is the PostgreSQL
+// convention and it keeps the hand-written SQL (the audit-immutability trigger,
+// the keyset pagination query) free of quoted identifiers.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// Prisma 7 removed `url` from the schema. Migrate reads the connection string
+// from prisma.config.ts; the runtime client connects through a driver adapter
+// (see src/lib/prisma.ts).
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OPERATOR
+  SUPERVISOR
+  AUDITOR
+}
+
+enum EquipmentStatus {
+  ACTIVE
+  RETIRED
+}
+
+enum RecordStatus {
+  PENDING
+  VERIFIED
+}
+
+enum CleaningMethod {
+  CIP
+  COP
+  SIP
+  MANUAL
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+}
+
+model User {
+  id           String   @id @default(uuid(7))
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  role         Role     @default(OPERATOR)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  cleaningsPerformed CleaningRecord[] @relation("CleanedBy")
+  cleaningsVerified  CleaningRecord[] @relation("VerifiedBy")
+  auditEntries       AuditLog[]
+
+  @@map("users")
+}
+
+model Equipment {
+  id        String          @id @default(uuid(7))
+  name      String
+  /// Asset tag (e.g. MT-002). Names repeat on a plant floor; the code does not.
+  code      String          @unique
+  status    EquipmentStatus @default(ACTIVE)
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  cleaningRecords CleaningRecord[]
+
+  @@index([status])
+  @@map("equipment")
+}
+
+model CleaningRecord {
+  id          String @id @default(uuid(7))
+  equipmentId String @map("equipment_id")
+
+  /// WHO physically performed the cleaning — the subject of the record.
+  /// Distinct from AuditLog.changedById, which is whoever mutated the row.
+  cleanedById String         @map("cleaned_by_id")
+  cleanedAt   DateTime       @map("cleaned_at")
+  method      CleaningMethod
+  notes       String?
+  status      RecordStatus   @default(PENDING)
+
+  /// Set only when a supervisor signs the record off.
+  verifiedById String?   @map("verified_by_id")
+  verifiedAt   DateTime? @map("verified_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Restrict, not Cascade: cleaning history is evidence. Removing a piece of
+  // equipment must never silently destroy the record of it having been cleaned.
+  equipment  Equipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  cleanedBy  User      @relation("CleanedBy", fields: [cleanedById], references: [id], onDelete: Restrict)
+  verifiedBy User?     @relation("VerifiedBy", fields: [verifiedById], references: [id], onDelete: Restrict)
+  auditLogs  AuditLog[]
+
+  // Serves both the default ordering and keyset pagination, which seeks on the
+  // (cleaned_at, id) tuple. Both columns must be DESC to match the query.
+  @@index([equipmentId, cleanedAt(sort: Desc), id(sort: Desc)])
+  // Serves the ?status= filter combined with the equipment scope.
+  @@index([equipmentId, status])
+  @@map("cleaning_records")
+}
+
+/// Append-only. A database trigger (see migration
+/// `20260908_audit_log_immutability`) rejects UPDATE and DELETE on this table,
+/// so immutability is a guarantee rather than a convention.
+model AuditLog {
+  id               String      @id @default(uuid(7))
+  cleaningRecordId String      @map("cleaning_record_id")
+  action           AuditAction
+  /// The ACTOR. Always taken from the authenticated principal, never the body.
+  changedById      String      @map("changed_by_id")
+  changedAt        DateTime    @default(now()) @map("changed_at")
+  /// { fieldName: { old, new } } — see NOTES.md for why this is JSONB.
+  changes          Json        @db.JsonB
+  /// Why a already-verified record was amended. Null for ordinary changes.
+  reason           String?
+
+  cleaningRecord CleaningRecord @relation(fields: [cleaningRecordId], references: [id], onDelete: Restrict)
+  changedBy      User           @relation(fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([cleaningRecordId, changedAt(sort: Desc)])
+  @@map("audit_logs")
+}
