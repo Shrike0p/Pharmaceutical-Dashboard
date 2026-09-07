@@ -46,6 +46,13 @@ export const equipmentListQuerySchema = paginationQuerySchema.extend({
 });
 
 export type CreateEquipmentInput = z.infer<typeof createEquipmentSchema>;
+
+/**
+ * The schema's *input* type. It differs from the output because `status` has a
+ * default, so it is optional going in and guaranteed coming out. Form libraries
+ * need both: the values the user edits, and the values the resolver produces.
+ */
+export type CreateEquipmentFormValues = z.input<typeof createEquipmentSchema>;
 export type UpdateEquipmentInput = z.infer<typeof updateEquipmentSchema>;
 export type EquipmentListQuery = z.infer<typeof equipmentListQuerySchema>;
 

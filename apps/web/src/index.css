@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/*
+ * A small, deliberate design system rather than a component library: a slate
+ * neutral ramp, one blue accent, and semantic colours for the two record states
+ * an operator scans for (pending amber, verified green).
+ */
+@theme {
+  --color-brand-50: oklch(0.97 0.014 254);
+  --color-brand-100: oklch(0.93 0.032 255);
+  --color-brand-500: oklch(0.62 0.19 259);
+  --color-brand-600: oklch(0.55 0.2 262);
+  --color-brand-700: oklch(0.49 0.19 264);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-family: var(--font-sans);
+  }
+
+  /* Visible focus for keyboard users on every interactive element. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-600;
+  }
+}
+
+@layer utilities {
+  /* Tabular figures keep timestamp columns from jittering between rows. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
