@@ -5,6 +5,8 @@
   "type": "module",
   "description": "Equipment Cleaning Log API — Express + Prisma + PostgreSQL",
   "scripts": {
+    "//postinstall": "The Prisma client is generated code and is gitignored, so a fresh clone has none. Prisma 7's `migrate dev` no longer generates it either, so it is produced here as part of `pnpm install`.",
+    "postinstall": "prisma generate",
     "dev": "tsx watch src/server.ts",
     "build": "tsup",
     "start": "node dist/server.js",
@@ -14,8 +16,8 @@
     "test:integration": "vitest run --project integration",
     "test:watch": "vitest",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
+    "db:migrate": "prisma migrate dev && prisma generate",
+    "db:deploy": "prisma migrate deploy && prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force && prisma db seed",
     "db:studio": "prisma studio"

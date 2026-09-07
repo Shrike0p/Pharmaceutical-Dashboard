@@ -382,7 +382,8 @@ Run from the repository root.
 | `pnpm test` | Full test suite |
 | `pnpm typecheck` | `tsc --noEmit` across the workspace |
 | `pnpm lint` | ESLint across the workspace |
-| `pnpm db:migrate` | Apply migrations (dev) |
+| `pnpm db:generate` | Regenerate the Prisma client (also runs automatically on `pnpm install`) |
+| `pnpm db:migrate` | Apply migrations (dev) and regenerate the client |
 | `pnpm db:seed` | Reset data and reseed |
 | `pnpm db:reset` | Drop, re-migrate, reseed |
 | `pnpm db:studio` | Prisma Studio |

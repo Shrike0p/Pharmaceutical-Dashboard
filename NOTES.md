@@ -342,6 +342,12 @@ that was a check, not a committed test.
   having applied the migrations, leaving an empty database — a silent failure, since nothing errors.
   Caught by actually running the documented command rather than assuming it; `db:reset` now chains
   `prisma db seed` explicitly.
+- **`prisma migrate dev` no longer generates the client either.** The generated client is gitignored
+  (it is build output, not source), so on a fresh clone nothing produced it and `db:seed`, `test`,
+  `typecheck` and `build` all failed. `prisma generate` now runs as a `postinstall`, and the migrate
+  scripts chain it too. Both of these were found by cloning the repository into a clean directory
+  and following the README literally — worth doing before submitting anything, because the machine
+  you built on always has state a reviewer's does not.
 - **`strict` TypeScript plus `noUncheckedIndexedAccess`** across the workspace. The latter is why
   route parameters go through a `param()` helper that fails loudly rather than through non-null
   assertions.
