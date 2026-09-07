@@ -15,6 +15,9 @@ export default defineConfig({
   },
   migrations: {
     path: path.join("prisma", "migrations"),
+    // Used by `prisma db seed`. Note that Prisma 7's `migrate reset` no longer
+    // runs this automatically the way Prisma 6 did, so the `db:reset` script
+    // chains `prisma db seed` explicitly rather than relying on it.
     seed: "tsx prisma/seed.ts",
   },
 });

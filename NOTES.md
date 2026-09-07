@@ -338,6 +338,10 @@ that was a check, not a committed test.
   wrong place to debug toolchain bleed; this is a deliberate pin, not an oversight.
 - **`prisma` pinned to `7.10.0`.** Its `latest` tag currently resolves to `8.0.0-rc.13` while
   `@prisma/client@latest` is `7.10.0`, so an unpinned install produces a mismatched CLI/client pair.
+- **`prisma migrate reset` no longer runs the seed** in Prisma 7, unlike Prisma 6. It exits cleanly
+  having applied the migrations, leaving an empty database — a silent failure, since nothing errors.
+  Caught by actually running the documented command rather than assuming it; `db:reset` now chains
+  `prisma db seed` explicitly.
 - **`strict` TypeScript plus `noUncheckedIndexedAccess`** across the workspace. The latter is why
   route parameters go through a `param()` helper that fails loudly rather than through non-null
   assertions.
