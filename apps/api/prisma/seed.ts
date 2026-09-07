@@ -176,8 +176,10 @@ async function main() {
 
   for (const { equipment, records } of equipmentList) {
     for (let index = 0; index < records; index += 1) {
-      // Spread cleanings backwards from ~12 hours ago, roughly one per 1–2 days.
-      const daysAgo = index * (1 + rng()) + 0.5;
+      // Spread cleanings backwards, roughly one per 1–2 days. The leading
+      // random offset matters: without it every asset's newest record would
+      // land on the identical timestamp, which looks obviously synthetic.
+      const daysAgo = index * (1 + rng()) + rng() * 2.5;
       const cleanedAt = new Date(NOW - daysAgo * DAY_MS);
       const operator = pick(operators);
 
