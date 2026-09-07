@@ -8,7 +8,6 @@ import type { UserSummaryDto } from "@ecl/shared";
  * to be looking at server-derived data rather than at the raw request.
  */
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: UserSummaryDto;

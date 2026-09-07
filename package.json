@@ -15,16 +15,22 @@
     "test:unit": "pnpm --filter @ecl/api test:unit",
     "test:integration": "pnpm --filter @ecl/api test:integration",
     "typecheck": "pnpm --recursive typecheck",
-    "lint": "pnpm --recursive lint",
+    "lint": "eslint .",
     "db:generate": "pnpm --filter @ecl/api db:generate",
     "db:migrate": "pnpm --filter @ecl/api db:migrate",
     "db:seed": "pnpm --filter @ecl/api db:seed",
     "db:reset": "pnpm --filter @ecl/api db:reset",
-    "db:studio": "pnpm --filter @ecl/api db:studio"
+    "db:studio": "pnpm --filter @ecl/api db:studio",
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "concurrently": "^9.2.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^6.1.1",
+    "globals": "^17.12.0",
     "tsx": "4.23.13",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.70.0"
   }
 }
