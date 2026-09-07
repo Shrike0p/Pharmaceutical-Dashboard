@@ -1,0 +1,29 @@
+{
+  "name": "equipment-cleaning-log",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Equipment Cleaning Log with a field-level audit trail for pharmaceutical manufacturing",
+  "type": "module",
+  "packageManager": "pnpm@10.22.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"pnpm --filter @ecl/api dev\" \"pnpm --filter @ecl/web dev\"",
+    "build": "pnpm --filter @ecl/shared build && pnpm --filter @ecl/api build && pnpm --filter @ecl/web build",
+    "test": "pnpm --filter @ecl/api test",
+    "test:unit": "pnpm --filter @ecl/api test:unit",
+    "test:integration": "pnpm --filter @ecl/api test:integration",
+    "typecheck": "pnpm --recursive typecheck",
+    "lint": "pnpm --recursive lint",
+    "db:generate": "pnpm --filter @ecl/api db:generate",
+    "db:migrate": "pnpm --filter @ecl/api db:migrate",
+    "db:seed": "pnpm --filter @ecl/api db:seed",
+    "db:reset": "pnpm --filter @ecl/api db:reset",
+    "db:studio": "pnpm --filter @ecl/api db:studio"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "5.9.3"
+  }
+}
