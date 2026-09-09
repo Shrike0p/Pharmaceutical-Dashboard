@@ -6,7 +6,10 @@ import { env } from "./config/env.ts";
 import { logger } from "./lib/logger.ts";
 import { prisma } from "./lib/prisma.ts";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.ts";
+import { auditRouter } from "./modules/audit/audit.routes.ts";
 import { authRouter } from "./modules/auth/auth.routes.ts";
+import { globalCleaningRecordRouter } from "./modules/cleaning-records/global-cleaning-record.routes.ts";
+import { dashboardRouter } from "./modules/dashboard/dashboard.routes.ts";
 import { equipmentRouter } from "./modules/equipment/equipment.routes.ts";
 
 /**
@@ -38,6 +41,9 @@ export function buildApp(): Express {
 
   app.use("/api/auth", authRouter);
   app.use("/api/equipment", equipmentRouter);
+  app.use("/api/cleaning-records", globalCleaningRecordRouter);
+  app.use("/api/audit", auditRouter);
+  app.use("/api/dashboard", dashboardRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
