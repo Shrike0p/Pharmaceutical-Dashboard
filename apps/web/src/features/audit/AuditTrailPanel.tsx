@@ -1,10 +1,20 @@
 import { useMemo, useState } from "react";
 import type { AuditEntryDto, CleaningRecordDto } from "@ecl/shared";
-import { Button, ErrorState, InlineAlert, Modal, RecordStatusBadge } from "../../components/ui";
-import { useAuditTrail, useUpdateCleaningRecord, useUsers } from "../../hooks/queries";
-import { fieldLabel, formatAuditValue, formatDateTime } from "../../lib/format";
-import { useAuth } from "../../lib/auth";
-import { ApiError } from "../../lib/api-client";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { ErrorState, InlineAlert } from "@/components/data-states";
+import { RecordStatusBadge } from "@/components/status-badges";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuditTrail, useUpdateCleaningRecord, useUsers } from "@/hooks/queries";
+import { fieldLabel, formatAuditValue, formatDateTime } from "@/lib/format";
+import { useAuth } from "@/lib/auth";
+import { ApiError } from "@/lib/api-client";
 
 export function AuditTrailPanel({
   equipmentId,
@@ -48,54 +58,55 @@ export function AuditTrailPanel({
   }
 
   return (
-    <Modal
-      open={record !== null}
-      onClose={onClose}
-      title="Audit trail"
-      description={record ? `Cleaning on ${formatDateTime(record.cleanedAt)}` : undefined}
-      width="max-w-2xl"
-    >
-      {record ? (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2.5">
-            <div className="flex items-center gap-3 text-sm">
-              <RecordStatusBadge status={record.status} />
-              <span className="text-slate-600">
-                Cleaned by <span className="font-medium text-slate-800">{record.cleanedBy.name}</span>
-              </span>
-              {record.verifiedBy ? (
-                <span className="text-slate-600">
-                  Verified by <span className="font-medium text-slate-800">{record.verifiedBy.name}</span>
+    <Dialog open={record !== null} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Audit trail</DialogTitle>
+          {record ? <DialogDescription>Cleaning on {formatDateTime(record.cleanedAt)}</DialogDescription> : null}
+        </DialogHeader>
+
+        {record ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted px-3 py-2.5">
+              <div className="flex items-center gap-3 text-sm">
+                <RecordStatusBadge status={record.status} />
+                <span className="text-muted-foreground">
+                  Cleaned by <span className="font-medium text-foreground">{record.cleanedBy.name}</span>
                 </span>
+                {record.verifiedBy ? (
+                  <span className="text-muted-foreground">
+                    Verified by <span className="font-medium text-foreground">{record.verifiedBy.name}</span>
+                  </span>
+                ) : null}
+              </div>
+              {canVerify ? (
+                <Button onClick={() => void verify()} disabled={update.isPending}>
+                  {update.isPending ? "Verifying…" : "Verify record"}
+                </Button>
               ) : null}
             </div>
-            {canVerify ? (
-              <Button onClick={() => void verify()} isLoading={update.isPending}>
-                Verify record
-              </Button>
-            ) : null}
+
+            {actionError ? <InlineAlert>{actionError}</InlineAlert> : null}
+
+            {trail.isPending ? (
+              <div className="space-y-3" aria-busy="true" aria-label="Loading audit trail">
+                {[0, 1, 2].map((row) => (
+                  <Skeleton key={row} className="h-16" />
+                ))}
+              </div>
+            ) : trail.isError ? (
+              <ErrorState message={(trail.error as Error).message} onRetry={() => void trail.refetch()} />
+            ) : (
+              <ol className="relative max-h-[60vh] space-y-0 overflow-y-auto border-l pl-6">
+                {trail.data.data.map((entry) => (
+                  <AuditEntryItem key={entry.id} entry={entry} resolveUser={resolveUser} />
+                ))}
+              </ol>
+            )}
           </div>
-
-          {actionError ? <InlineAlert>{actionError}</InlineAlert> : null}
-
-          {trail.isPending ? (
-            <div className="space-y-3" aria-busy="true" aria-label="Loading audit trail">
-              {[0, 1, 2].map((row) => (
-                <div key={row} className="h-16 animate-pulse rounded-md bg-slate-100" />
-              ))}
-            </div>
-          ) : trail.isError ? (
-            <ErrorState message={(trail.error as Error).message} onRetry={() => void trail.refetch()} />
-          ) : (
-            <ol className="relative space-y-0 border-l border-slate-200 pl-6">
-              {trail.data.data.map((entry) => (
-                <AuditEntryItem key={entry.id} entry={entry} resolveUser={resolveUser} />
-              ))}
-            </ol>
-          )}
-        </div>
-      ) : null}
-    </Modal>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -113,21 +124,21 @@ function AuditEntryItem({
     <li className="relative pb-6 last:pb-0">
       <span
         aria-hidden
-        className={`absolute top-1.5 -left-[27px] size-3 rounded-full ring-4 ring-white ${
-          isCreate ? "bg-brand-500" : "bg-slate-300"
+        className={`absolute top-1.5 -left-[27px] size-3 rounded-full ring-4 ring-background ${
+          isCreate ? "bg-primary" : "bg-muted-foreground/40"
         }`}
       />
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <p className="text-sm font-medium text-slate-900">
+        <p className="text-sm font-medium text-foreground">
           {isCreate ? "Record created" : "Record updated"}
         </p>
-        <p className="tnum text-xs text-slate-500">
+        <p className="text-xs tabular-nums text-muted-foreground">
           {formatDateTime(entry.changedAt)} · {entry.changedBy.name} ({entry.changedBy.role.toLowerCase()})
         </p>
       </div>
 
       {entry.reason ? (
-        <p className="mt-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 ring-1 ring-amber-200 ring-inset">
+        <p className="mt-1.5 rounded-md bg-pending-50 px-2.5 py-1.5 text-xs text-pending-700">
           <span className="font-medium">Reason for amendment:</span> {entry.reason}
         </p>
       ) : null}
@@ -135,22 +146,22 @@ function AuditEntryItem({
       <dl className="mt-2 space-y-1.5">
         {changes.map(([field, change]) => (
           <div key={field} className="flex flex-wrap items-baseline gap-x-2 text-sm">
-            <dt className="w-28 shrink-0 text-xs text-slate-500">{fieldLabel(field)}</dt>
+            <dt className="w-28 shrink-0 text-xs text-muted-foreground">{fieldLabel(field)}</dt>
             <dd className="flex flex-wrap items-baseline gap-1.5">
               {/* On a creation there is no prior value, so showing "— →" for
                   every field would be noise; the arrow only earns its place
                   when something was genuinely replaced. */}
               {!isCreate ? (
                 <>
-                  <span className="text-slate-500 line-through decoration-slate-400">
+                  <span className="text-muted-foreground line-through">
                     {formatAuditValue(field, change.old, resolveUser)}
                   </span>
-                  <span aria-hidden className="text-slate-400">
+                  <span aria-hidden className="text-muted-foreground">
                     →
                   </span>
                 </>
               ) : null}
-              <span className="font-medium text-slate-900">
+              <span className="font-medium text-foreground">
                 {formatAuditValue(field, change.new, resolveUser)}
               </span>
             </dd>

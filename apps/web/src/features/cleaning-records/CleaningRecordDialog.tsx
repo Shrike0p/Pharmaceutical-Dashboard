@@ -8,11 +8,24 @@ import {
   type CleaningRecordDto,
   type CreateCleaningRecordInput,
 } from "@ecl/shared";
-import { Button, Field, InlineAlert, Input, Modal, Select, Textarea } from "../../components/ui";
-import { ApiError } from "../../lib/api-client";
-import { useAuth } from "../../lib/auth";
-import { toDateTimeLocalValue } from "../../lib/format";
-import { useCreateCleaningRecord, useUpdateCleaningRecord, useUsers } from "../../hooks/queries";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FormField } from "@/components/form-field";
+import { InlineAlert } from "@/components/data-states";
+import { ApiError } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth";
+import { toDateTimeLocalValue } from "@/lib/format";
+import { useCreateCleaningRecord, useUpdateCleaningRecord, useUsers } from "@/hooks/queries";
 
 /**
  * One dialog for both creating and editing. The form shape is identical; only
@@ -46,6 +59,8 @@ export function CleaningRecordDialog({
     handleSubmit,
     reset,
     setError,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreateCleaningRecordInput>({
     // The same schema the API validates with — including the "not in the
@@ -100,75 +115,89 @@ export function CleaningRecordDialog({
   });
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={isEditing ? "Edit cleaning record" : "Record a cleaning"}
-      description={
-        isEditing
-          ? "Every change is recorded in the audit trail, field by field."
-          : "The record starts as pending until a supervisor verifies it."
-      }
-    >
-      <form onSubmit={onSubmit} className="space-y-4" noValidate>
-        {formError ? <InlineAlert>{formError}</InlineAlert> : null}
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit cleaning record" : "Record a cleaning"}</DialogTitle>
+          <DialogDescription>
+            {isEditing
+              ? "Every change is recorded in the audit trail, field by field."
+              : "The record starts as pending until a supervisor verifies it."}
+          </DialogDescription>
+        </DialogHeader>
 
-        <Field label="Cleaned by" error={errors.cleanedById?.message} required>
-          <Select {...register("cleanedById")} disabled={users.isPending}>
-            <option value="">{users.isPending ? "Loading…" : "Select a person"}</option>
-            {users.data?.map((person) => (
-              <option key={person.id} value={person.id}>
-                {person.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <form onSubmit={onSubmit} className="space-y-4" noValidate>
+          {formError ? <InlineAlert>{formError}</InlineAlert> : null}
 
-        <Field label="Cleaned at" error={errors.cleanedAt?.message} required>
-          <Input type="datetime-local" {...register("cleanedAt")} />
-        </Field>
+          <FormField label="Cleaned by" error={errors.cleanedById?.message} required>
+            <Select value={watch("cleanedById")} onValueChange={(value) => setValue("cleanedById", value)}>
+              <SelectTrigger className="w-full" disabled={users.isPending}>
+                <SelectValue placeholder={users.isPending ? "Loading…" : "Select a person"} />
+              </SelectTrigger>
+              <SelectContent>
+                {users.data?.map((person) => (
+                  <SelectItem key={person.id} value={person.id}>
+                    {person.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
 
-        <Field label="Method" error={errors.method?.message} required>
-          <Select {...register("method")}>
-            {CLEANING_METHODS.map((method) => (
-              <option key={method} value={method}>
-                {CLEANING_METHOD_LABELS[method]}
-              </option>
-            ))}
-          </Select>
-        </Field>
+          <FormField label="Cleaned at" htmlFor="cleanedAt" error={errors.cleanedAt?.message} required>
+            <Input id="cleanedAt" type="datetime-local" {...register("cleanedAt")} />
+          </FormField>
 
-        <Field label="Notes" error={errors.notes?.message} hint="Optional. Up to 2000 characters.">
-          <Textarea rows={3} placeholder="Observations, deviations, sample references…" {...register("notes")} />
-        </Field>
+          <FormField label="Method" error={errors.method?.message} required>
+            <Select value={watch("method")} onValueChange={(value) => setValue("method", value as CreateCleaningRecordInput["method"])}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CLEANING_METHODS.map((method) => (
+                  <SelectItem key={method} value={method}>
+                    {CLEANING_METHOD_LABELS[method]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
 
-        {requiresReason ? (
-          <Field
-            label="Reason for amendment"
-            required
-            hint="This record has been verified, so the change needs a documented reason."
-          >
-            <Input
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Transcription error on the batch sheet"
+          <FormField label="Notes" htmlFor="notes" error={errors.notes?.message} hint="Optional. Up to 2000 characters.">
+            <Textarea
+              id="notes"
+              rows={3}
+              placeholder="Observations, deviations, sample references…"
+              {...register("notes")}
             />
-          </Field>
-        ) : null}
+          </FormField>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            isLoading={isSubmitting}
-            disabled={requiresReason && reason.trim().length < 3}
-          >
-            {isEditing ? "Save changes" : "Save record"}
-          </Button>
-        </div>
-      </form>
-    </Modal>
+          {requiresReason ? (
+            <FormField
+              label="Reason for amendment"
+              htmlFor="reason"
+              required
+              hint="This record has been verified, so the change needs a documented reason."
+            >
+              <Input
+                id="reason"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Transcription error on the batch sheet"
+              />
+            </FormField>
+          ) : null}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting || (requiresReason && reason.trim().length < 3)}>
+              {isSubmitting ? "Saving…" : isEditing ? "Save changes" : "Save record"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

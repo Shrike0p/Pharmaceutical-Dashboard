@@ -6,9 +6,21 @@ import {
   type CreateEquipmentFormValues,
   type CreateEquipmentInput,
 } from "@ecl/shared";
-import { Button, Field, InlineAlert, Input, Modal, Select } from "../../components/ui";
-import { ApiError } from "../../lib/api-client";
-import { useCreateEquipment } from "../../hooks/queries";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FormField } from "@/components/form-field";
+import { InlineAlert } from "@/components/data-states";
+import { useCreateEquipment } from "@/hooks/queries";
+import { ApiError } from "@/lib/api-client";
 
 export function NewEquipmentDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const createEquipment = useCreateEquipment();
@@ -19,6 +31,8 @@ export function NewEquipmentDialog({ open, onClose }: { open: boolean; onClose: 
     handleSubmit,
     reset,
     setError,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreateEquipmentFormValues, unknown, CreateEquipmentInput>({
     resolver: zodResolver(createEquipmentSchema),
@@ -52,39 +66,55 @@ export function NewEquipmentDialog({ open, onClose }: { open: boolean; onClose: 
   });
 
   return (
-    <Modal open={open} onClose={onClose} title="Add equipment">
-      <form onSubmit={onSubmit} className="space-y-4" noValidate>
-        {formError ? <InlineAlert>{formError}</InlineAlert> : null}
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add equipment</DialogTitle>
+          <DialogDescription>Register a new asset to file cleaning records against.</DialogDescription>
+        </DialogHeader>
 
-        <Field label="Name" error={errors.name?.message} required>
-          <Input placeholder="Mixing Tank 03" {...register("name")} />
-        </Field>
+        <form onSubmit={onSubmit} className="space-y-4" noValidate>
+          {formError ? <InlineAlert>{formError}</InlineAlert> : null}
 
-        <Field
-          label="Asset code"
-          error={errors.code?.message}
-          hint="Uppercase letters and digits, e.g. MT-003. Must be unique."
-          required
-        >
-          <Input placeholder="MT-003" {...register("code")} />
-        </Field>
+          <FormField label="Name" htmlFor="name" error={errors.name?.message} required>
+            <Input id="name" placeholder="Mixing Tank 03" autoFocus {...register("name")} />
+          </FormField>
 
-        <Field label="Status" error={errors.status?.message}>
-          <Select {...register("status")}>
-            <option value="ACTIVE">Active</option>
-            <option value="RETIRED">Retired</option>
-          </Select>
-        </Field>
+          <FormField
+            label="Asset code"
+            htmlFor="code"
+            error={errors.code?.message}
+            hint="Uppercase letters and digits, e.g. MT-003. Must be unique."
+            required
+          >
+            <Input id="code" placeholder="MT-003" {...register("code")} />
+          </FormField>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" isLoading={isSubmitting}>
-            Add equipment
-          </Button>
-        </div>
-      </form>
-    </Modal>
+          <FormField label="Status" error={errors.status?.message}>
+            <Select
+              value={watch("status")}
+              onValueChange={(value) => setValue("status", value as CreateEquipmentFormValues["status"])}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ACTIVE">Active</SelectItem>
+                <SelectItem value="RETIRED">Retired</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Adding…" : "Add equipment"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

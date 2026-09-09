@@ -1,19 +1,16 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import {
-  Button,
-  Card,
-  EmptyState,
-  EquipmentStatusBadge,
-  ErrorState,
-  Input,
-  TableSkeleton,
-} from "../../components/ui";
-import { useEquipmentList } from "../../hooks/queries";
-import { formatDate } from "../../lib/format";
-import { useIsSupervisor } from "../../lib/auth";
+import { Plus } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { EmptyState, ErrorState, TableSkeleton } from "@/components/data-states";
+import { EquipmentStatusBadge } from "@/components/status-badges";
+import { useEquipmentList } from "@/hooks/queries";
+import { formatDate } from "@/lib/format";
+import { useIsSupervisor } from "@/lib/auth";
 import { NewEquipmentDialog } from "./NewEquipmentDialog";
-import { OffsetPager } from "../../components/OffsetPager";
+import { OffsetPager } from "@/components/OffsetPager";
 
 const PAGE_SIZE = 10;
 
@@ -47,12 +44,17 @@ export function EquipmentListPage() {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">Equipment</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <h1 className="text-lg font-semibold text-foreground">Equipment</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Select a piece of equipment to review its cleaning history.
           </p>
         </div>
-        {isSupervisor ? <Button onClick={() => setIsCreating(true)}>Add equipment</Button> : null}
+        {isSupervisor ? (
+          <Button onClick={() => setIsCreating(true)}>
+            <Plus />
+            Add equipment
+          </Button>
+        ) : null}
       </div>
 
       <div className="mb-4 max-w-xs">
@@ -72,7 +74,7 @@ export function EquipmentListPage() {
           <ErrorState message={(query.error as Error).message} onRetry={() => void query.refetch()} />
         ) : query.data.data.length === 0 ? (
           <EmptyState
-            title={search ? `No equipment matches “${search}”` : "No equipment yet"}
+            title={search ? `No equipment matches "${search}"` : "No equipment yet"}
             description={
               search ? "Try a different name or asset code." : "Add a piece of equipment to get started."
             }
@@ -81,7 +83,7 @@ export function EquipmentListPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs tracking-wide text-slate-500 uppercase">
+                <tr className="border-b text-left text-xs tracking-wide text-muted-foreground uppercase">
                   <th scope="col" className="px-4 py-3 font-medium">
                     Equipment
                   </th>
@@ -99,23 +101,27 @@ export function EquipmentListPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y">
                 {query.data.data.map((equipment) => (
-                  <tr key={equipment.id} className="hover:bg-slate-50">
+                  <tr key={equipment.id} className="hover:bg-accent">
                     <td className="px-4 py-3">
                       <Link
-                        to={`/equipment/${equipment.id}`}
-                        className="font-medium text-brand-700 hover:underline"
+                        to={`/app/equipment/${equipment.id}`}
+                        className="font-medium text-primary hover:underline"
                       >
                         {equipment.name}
                       </Link>
                     </td>
-                    <td className="tnum px-4 py-3 text-slate-600">{equipment.code}</td>
+                    <td className="px-4 py-3 tabular-nums text-muted-foreground">{equipment.code}</td>
                     <td className="px-4 py-3">
                       <EquipmentStatusBadge status={equipment.status} />
                     </td>
-                    <td className="tnum px-4 py-3 text-slate-600">{equipment.cleaningRecordCount}</td>
-                    <td className="tnum px-4 py-3 text-slate-600">{formatDate(equipment.lastCleanedAt)}</td>
+                    <td className="px-4 py-3 tabular-nums text-muted-foreground">
+                      {equipment.cleaningRecordCount}
+                    </td>
+                    <td className="px-4 py-3 tabular-nums text-muted-foreground">
+                      {formatDate(equipment.lastCleanedAt)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

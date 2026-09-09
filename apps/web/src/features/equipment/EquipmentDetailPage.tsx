@@ -1,24 +1,23 @@
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Plus } from "lucide-react";
 import { CLEANING_METHOD_LABELS, type CleaningRecordDto, type PaginationMode, type RecordStatus } from "@ecl/shared";
-import {
-  Button,
-  Card,
-  EmptyState,
-  EquipmentStatusBadge,
-  ErrorState,
-  RecordStatusBadge,
-  TableSkeleton,
-} from "../../components/ui";
-import { OffsetPager } from "../../components/OffsetPager";
-import { useCleaningRecords, useEquipment } from "../../hooks/queries";
-import { formatDateTime } from "../../lib/format";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState, ErrorState, TableSkeleton } from "@/components/data-states";
+import { EquipmentStatusBadge, RecordStatusBadge } from "@/components/status-badges";
+import { OffsetPager } from "@/components/OffsetPager";
+import { useCleaningRecords, useEquipment } from "@/hooks/queries";
+import { formatDateTime } from "@/lib/format";
+import { pageSizePreference, paginationModePreference } from "@/lib/preferences";
 import { CleaningRecordDialog } from "../cleaning-records/CleaningRecordDialog";
 import { AuditTrailPanel } from "../audit/AuditTrailPanel";
 
-const PAGE_SIZE = 10;
 const STATUS_FILTERS = [
-  { label: "All", value: "" },
+  { label: "All", value: "ALL" },
   { label: "Pending", value: "PENDING" },
   { label: "Verified", value: "VERIFIED" },
 ] as const;
@@ -28,9 +27,10 @@ export function EquipmentDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const page = Number(searchParams.get("page") ?? "1");
-  const status = (searchParams.get("status") ?? "") as RecordStatus | "";
-  const mode = (searchParams.get("mode") ?? "offset") as PaginationMode;
+  const status = (searchParams.get("status") ?? "ALL") as RecordStatus | "ALL";
+  const mode = (searchParams.get("mode") ?? paginationModePreference.get()) as PaginationMode;
   const cursor = searchParams.get("cursor") ?? undefined;
+  const limit = pageSizePreference.get();
 
   const [editing, setEditing] = useState<CleaningRecordDto | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -42,8 +42,8 @@ export function EquipmentDetailPage() {
   const records = useCleaningRecords(equipmentId, {
     mode,
     page,
-    limit: PAGE_SIZE,
-    ...(status ? { status } : {}),
+    limit,
+    ...(status !== "ALL" ? { status } : {}),
     ...(cursor ? { cursor } : {}),
   });
 
@@ -58,24 +58,25 @@ export function EquipmentDetailPage() {
 
   function setStatusFilter(value: string) {
     setCursorHistory([]);
-    update({ status: value || undefined, page: undefined, cursor: undefined });
+    update({ status: value === "ALL" ? undefined : value, page: undefined, cursor: undefined });
   }
 
   function setMode(value: PaginationMode) {
     setCursorHistory([]);
-    update({ mode: value === "offset" ? undefined : value, page: undefined, cursor: undefined });
+    update({ mode: value, page: undefined, cursor: undefined });
   }
 
   const pagination = records.data?.pagination;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <Link to="/" className="text-sm text-brand-700 hover:underline">
-        ← All equipment
+      <Link to="/app/equipment" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+        <ArrowLeft className="size-3.5" />
+        All equipment
       </Link>
 
       {equipment.isPending ? (
-        <div className="mt-3 h-9 w-64 animate-pulse rounded bg-slate-200" />
+        <Skeleton className="mt-3 h-9 w-64" />
       ) : equipment.isError ? (
         <Card className="mt-4">
           <ErrorState
@@ -88,10 +89,10 @@ export function EquipmentDetailPage() {
           <div className="mt-3 mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-lg font-semibold text-slate-900">{equipment.data.name}</h1>
+                <h1 className="text-lg font-semibold text-foreground">{equipment.data.name}</h1>
                 <EquipmentStatusBadge status={equipment.data.status} />
               </div>
-              <p className="tnum mt-0.5 text-sm text-slate-500">
+              <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
                 {equipment.data.code} · {equipment.data.cleaningRecordCount} cleaning records
               </p>
             </div>
@@ -104,41 +105,35 @@ export function EquipmentDetailPage() {
                   : undefined
               }
             >
+              <Plus />
               Record a cleaning
             </Button>
           </div>
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex gap-1 rounded-lg bg-slate-100 p-1" role="group" aria-label="Filter by status">
-              {STATUS_FILTERS.map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  aria-pressed={status === filter.value}
-                  onClick={() => setStatusFilter(filter.value)}
-                  className={
-                    status === filter.value
-                      ? "rounded-md bg-white px-3 py-1.5 text-sm font-medium text-slate-900 shadow-sm"
-                      : "rounded-md px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900"
-                  }
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
+            <Tabs value={status} onValueChange={setStatusFilter}>
+              <TabsList>
+                {STATUS_FILTERS.map((filter) => (
+                  <TabsTrigger key={filter.value} value={filter.value}>
+                    {filter.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
 
             {/* Exposed in the UI so the keyset implementation is demonstrable,
                 not just present in the API. */}
-            <label className="flex items-center gap-2 text-xs text-slate-500">
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
               Pagination
-              <select
-                value={mode}
-                onChange={(event) => setMode(event.target.value as PaginationMode)}
-                className="rounded-md bg-white px-2 py-1 text-xs text-slate-700 ring-1 ring-slate-300 ring-inset"
-              >
-                <option value="offset">Offset (page numbers)</option>
-                <option value="cursor">Keyset (cursor)</option>
-              </select>
+              <Select value={mode} onValueChange={(value) => setMode(value as PaginationMode)}>
+                <SelectTrigger className="h-8 w-44 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="offset">Offset (page numbers)</SelectItem>
+                  <SelectItem value="cursor">Keyset (cursor)</SelectItem>
+                </SelectContent>
+              </Select>
             </label>
           </div>
 
@@ -149,9 +144,9 @@ export function EquipmentDetailPage() {
               <ErrorState message={(records.error as Error).message} onRetry={() => void records.refetch()} />
             ) : records.data.data.length === 0 ? (
               <EmptyState
-                title={status ? `No ${status.toLowerCase()} records` : "No cleaning records yet"}
+                title={status !== "ALL" ? `No ${status.toLowerCase()} records` : "No cleaning records yet"}
                 description={
-                  status
+                  status !== "ALL"
                     ? "Try clearing the filter to see all records."
                     : "Record the first cleaning for this equipment."
                 }
@@ -160,7 +155,7 @@ export function EquipmentDetailPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 text-left text-xs tracking-wide text-slate-500 uppercase">
+                    <tr className="border-b text-left text-xs tracking-wide text-muted-foreground uppercase">
                       <th scope="col" className="px-4 py-3 font-medium">
                         Cleaned at
                       </th>
@@ -178,14 +173,14 @@ export function EquipmentDetailPage() {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y">
                     {records.data.data.map((record) => (
-                      <tr key={record.id} className="hover:bg-slate-50">
-                        <td className="tnum px-4 py-3 whitespace-nowrap text-slate-700">
+                      <tr key={record.id} className="hover:bg-accent">
+                        <td className="px-4 py-3 whitespace-nowrap tabular-nums text-foreground">
                           {formatDateTime(record.cleanedAt)}
                         </td>
-                        <td className="px-4 py-3 text-slate-700">{record.cleanedBy.name}</td>
-                        <td className="px-4 py-3 text-slate-600">
+                        <td className="px-4 py-3 text-foreground">{record.cleanedBy.name}</td>
+                        <td className="px-4 py-3 text-muted-foreground">
                           {CLEANING_METHOD_LABELS[record.method]}
                         </td>
                         <td className="px-4 py-3">
@@ -193,10 +188,10 @@ export function EquipmentDetailPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" onClick={() => setAuditFor(record)}>
+                            <Button variant="ghost" size="sm" onClick={() => setAuditFor(record)}>
                               History
                             </Button>
-                            <Button variant="secondary" onClick={() => setEditing(record)}>
+                            <Button variant="outline" size="sm" onClick={() => setEditing(record)}>
                               Edit
                             </Button>
                           </div>
@@ -211,13 +206,14 @@ export function EquipmentDetailPage() {
             {pagination?.mode === "offset" ? (
               <OffsetPager meta={pagination} onPageChange={(next) => update({ page: String(next) })} />
             ) : pagination?.mode === "cursor" ? (
-              <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-3">
-                <p className="text-sm text-slate-500">
+              <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+                <p className="text-sm text-muted-foreground">
                   Keyset pagination — stable under concurrent inserts, but no total page count.
                 </p>
                 <div className="flex gap-2">
                   <Button
-                    variant="secondary"
+                    variant="outline"
+                    size="sm"
                     disabled={cursorHistory.length === 0}
                     onClick={() => {
                       const previous = [...cursorHistory];
@@ -229,7 +225,8 @@ export function EquipmentDetailPage() {
                     Previous
                   </Button>
                   <Button
-                    variant="secondary"
+                    variant="outline"
+                    size="sm"
                     disabled={!pagination.hasNextPage}
                     onClick={() => {
                       setCursorHistory((history) => [...history, cursor ?? ""]);
