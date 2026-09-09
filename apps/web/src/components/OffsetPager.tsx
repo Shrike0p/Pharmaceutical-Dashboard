@@ -1,5 +1,5 @@
 import type { OffsetPaginationMeta } from "@ecl/shared";
-import { Button } from "./ui";
+import { Button } from "@/components/ui/button";
 
 /**
  * Numbered paging controls. These need a total page count, which is precisely
@@ -19,31 +19,27 @@ export function OffsetPager({
   const lastOnPage = Math.min(meta.page * meta.limit, meta.total);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3">
-      <p className="tnum text-sm text-slate-500">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+      <p className="text-sm tabular-nums text-muted-foreground">
         {firstOnPage > meta.total ? (
           <>No results on this page — {meta.total} in total</>
         ) : (
           <>
-            Showing <span className="font-medium text-slate-700">{firstOnPage}</span>–
-            <span className="font-medium text-slate-700">{lastOnPage}</span> of{" "}
-            <span className="font-medium text-slate-700">{meta.total}</span>
+            Showing <span className="font-medium text-foreground">{firstOnPage}</span>–
+            <span className="font-medium text-foreground">{lastOnPage}</span> of{" "}
+            <span className="font-medium text-foreground">{meta.total}</span>
           </>
         )}
       </p>
 
       <div className="flex items-center gap-2">
-        <Button
-          variant="secondary"
-          disabled={!meta.hasPreviousPage}
-          onClick={() => onPageChange(meta.page - 1)}
-        >
+        <Button variant="outline" size="sm" disabled={!meta.hasPreviousPage} onClick={() => onPageChange(meta.page - 1)}>
           Previous
         </Button>
-        <span className="tnum px-1 text-sm text-slate-600">
+        <span className="px-1 text-sm tabular-nums text-muted-foreground">
           Page {meta.page} of {Math.max(meta.totalPages, 1)}
         </span>
-        <Button variant="secondary" disabled={!meta.hasNextPage} onClick={() => onPageChange(meta.page + 1)}>
+        <Button variant="outline" size="sm" disabled={!meta.hasNextPage} onClick={() => onPageChange(meta.page + 1)}>
           Next
         </Button>
       </div>
