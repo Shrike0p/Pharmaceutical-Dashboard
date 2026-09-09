@@ -112,7 +112,10 @@ async function createRecordWithAudit(input: {
   const { actorId, ...data } = input;
 
   return prisma.$transaction(async (tx) => {
-    const record = await tx.cleaningRecord.create({ data });
+    // Without this, `createdAt` defaults to "now" for every seeded record,
+    // which would bunch the Overview dashboard's 30-day activity chart onto
+    // a single spike on whichever day the seed happened to run.
+    const record = await tx.cleaningRecord.create({ data: { ...data, createdAt: input.cleanedAt } });
     const changes = diffFields(null, record, AUDITED_CLEANING_RECORD_FIELDS);
     await tx.auditLog.create({
       data: {
