@@ -5,6 +5,8 @@ import type {
   CleaningRecordDto,
   CleaningRecordListQuery,
   CreateCleaningRecordInput,
+  GlobalCleaningRecordDto,
+  GlobalCleaningRecordListQuery,
   Paginated,
   PaginationQuery,
   RecordStatus,
@@ -24,6 +26,7 @@ import {
   decodeCursor,
   encodeCursor,
 } from "../../domain/pagination/cursor.ts";
+import { toUtcDayRange } from "../../domain/filters/date-range.ts";
 import { assertEquipmentExists } from "../equipment/equipment.service.ts";
 import { userSummarySelect } from "../auth/auth.service.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
@@ -148,6 +151,93 @@ async function listByCursor(
     hasNextPage && last ? encodeCursor({ cleanedAt: last.cleanedAt.toISOString(), id: last.id }) : null;
 
   return { data: page.map(toDto), pagination: buildCursorMeta(limit, nextCursor) };
+}
+
+const globalRecordInclude = {
+  ...recordInclude,
+  equipment: { select: { id: true, name: true, code: true, status: true } },
+} satisfies Prisma.CleaningRecordInclude;
+
+type GlobalRecordRow = Prisma.CleaningRecordGetPayload<{ include: typeof globalRecordInclude }>;
+
+function toGlobalDto(row: GlobalRecordRow): GlobalCleaningRecordDto {
+  return { ...toDto(row), equipment: row.equipment };
+}
+
+/**
+ * Cross-equipment listing for the Cleaning Records page - the same shape of
+ * query as `listCleaningRecords` above, but not scoped to one asset, and
+ * carrying the equipment summary each row needs since the URL no longer
+ * implies it. Kept as its own function (mirroring the per-equipment one field
+ * for field) rather than parameterizing a single generic implementation:
+ * Prisma's generated payload types are tied to the exact `include` shape, so
+ * a genuinely generic version would need its own generics for little benefit
+ * over two small, independently readable functions.
+ */
+export async function listAllCleaningRecords(
+  query: GlobalCleaningRecordListQuery,
+): Promise<Paginated<GlobalCleaningRecordDto>> {
+  const cleanedAtRange = toUtcDayRange(query.from, query.to);
+
+  const where: Prisma.CleaningRecordWhereInput = {
+    ...(query.status ? { status: query.status } : {}),
+    ...(query.equipmentId ? { equipmentId: query.equipmentId } : {}),
+    ...(query.cleanedById ? { cleanedById: query.cleanedById } : {}),
+    ...(query.method ? { method: query.method } : {}),
+    ...(cleanedAtRange.gte || cleanedAtRange.lte ? { cleanedAt: cleanedAtRange } : {}),
+  };
+
+  const orderBy: Prisma.CleaningRecordOrderByWithRelationInput[] = [
+    { cleanedAt: "desc" },
+    { id: "desc" },
+  ];
+
+  if (query.mode === "cursor" || query.cursor) {
+    return listAllByCursor(where, orderBy, query.cursor, query.limit);
+  }
+
+  const [total, rows] = await prisma.$transaction([
+    prisma.cleaningRecord.count({ where }),
+    prisma.cleaningRecord.findMany({
+      where,
+      include: globalRecordInclude,
+      orderBy,
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    }),
+  ]);
+
+  return { data: rows.map(toGlobalDto), pagination: buildOffsetMeta(query.page, query.limit, total) };
+}
+
+async function listAllByCursor(
+  where: Prisma.CleaningRecordWhereInput,
+  orderBy: Prisma.CleaningRecordOrderByWithRelationInput[],
+  rawCursor: string | undefined,
+  limit: number,
+): Promise<Paginated<GlobalCleaningRecordDto>> {
+  let seek: Prisma.CleaningRecordWhereInput = {};
+
+  if (rawCursor) {
+    const cursor = decodeCursor(rawCursor);
+    const cleanedAt = new Date(cursor.cleanedAt);
+    seek = { OR: [{ cleanedAt: { lt: cleanedAt } }, { cleanedAt, id: { lt: cursor.id } }] };
+  }
+
+  const rows = await prisma.cleaningRecord.findMany({
+    where: { AND: [where, seek] },
+    include: globalRecordInclude,
+    orderBy,
+    take: limit + 1,
+  });
+
+  const hasNextPage = rows.length > limit;
+  const page = hasNextPage ? rows.slice(0, limit) : rows;
+  const last = page.at(-1);
+  const nextCursor =
+    hasNextPage && last ? encodeCursor({ cleanedAt: last.cleanedAt.toISOString(), id: last.id }) : null;
+
+  return { data: page.map(toGlobalDto), pagination: buildCursorMeta(limit, nextCursor) };
 }
 
 export async function getCleaningRecord(
