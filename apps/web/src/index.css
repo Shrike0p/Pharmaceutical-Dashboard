@@ -1,38 +1,200 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+@custom-variant dark (&:is(.dark *));
 
 /*
- * A small, deliberate design system rather than a component library: a slate
- * neutral ramp, one blue accent, and semantic colours for the two record states
- * an operator scans for (pending amber, verified green).
+ * Brand palette, sampled directly from brand.png (the navy hexagon / molecular
+ * / verification-check mark): navy structure, steel neutrals, an ice-blue tint,
+ * and a verification green reserved strictly for the VERIFIED state.
+ *
+ * Two text-safe variants exist for steel and verify because the raw brand
+ * shades (steel-500, verify-600) fail WCAG AA for small text on white
+ * (steel-500 ~4.05:1, verify-600 ~3.02:1 - large-text only). The "-700"
+ * variants (~7.1:1, ~4.84:1) are what body/label/badge text should use;
+ * the "-500"/"-600" shades stay reserved for icons, borders, dots, and large
+ * (18px+/bold) accents where 3:1 is sufficient.
  */
 @theme {
-  --color-brand-50: oklch(0.97 0.014 254);
-  --color-brand-100: oklch(0.93 0.032 255);
-  --color-brand-500: oklch(0.62 0.19 259);
-  --color-brand-600: oklch(0.55 0.2 262);
-  --color-brand-700: oklch(0.49 0.19 264);
+  --color-navy-950: #0b1524;
+  --color-navy-900: #0f2038;
+  --color-navy-700: #28465c;
+  --color-steel-500: #708090;
+  --color-steel-700: #4a5a68;
+  --color-ice-100: #d0e0f0;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-verify-50: color-mix(in oklch, #3fa76a 10%, white);
+  --color-verify-600: #3fa76a;
+  --color-verify-700: #2e8055;
+
+  --color-pending-50: color-mix(in oklch, #b45309 10%, white);
+  --color-pending-600: #b45309;
+  --color-pending-700: #92400a;
+
+  --color-danger-50: color-mix(in oklch, #b91c1c 8%, white);
+  --color-danger-600: #b91c1c;
+}
+
+/*
+ * shadcn's derived token ladder (sidebar colors, chart colors, the
+ * radius scale). Kept as generated - only --radius-xl is overridden below,
+ * as a literal rather than part of the calc() chain, so cards/dialogs/sheets
+ * land on 12px while every other control stays on the --radius (8px) base.
+ * This is the one documented shape rule: controls 8px, cards 12px, badges
+ * effectively full-pill (a 20px-tall badge at radius-4xl already exceeds half
+ * its own height).
+ */
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: "Geist Variable", sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: 0.75rem; /* literal: cards, dialogs, sheets - not derived */
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* A hairline-subtle cool-tinted canvas, distinct from card white - gives
+     cards a sense of resting on the page without reaching for shadows. */
+  --background: #fafbfc;
+  --foreground: var(--color-navy-900);
+  --card: #ffffff;
+  --card-foreground: var(--color-navy-900);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-navy-900);
+  --primary: var(--color-navy-700);
+  --primary-foreground: #ffffff;
+  --secondary: #eef2f6;
+  --secondary-foreground: var(--color-navy-900);
+  --muted: #f1f4f7;
+  --muted-foreground: var(--color-steel-700);
+  --accent: var(--color-ice-100);
+  --accent-foreground: var(--color-navy-900);
+  --destructive: var(--color-danger-600);
+  --border: #dce3ea;
+  --input: #dce3ea;
+  --ring: var(--color-navy-700);
+  --chart-1: var(--color-navy-700);
+  --chart-2: var(--color-verify-600);
+  --chart-3: var(--color-steel-500);
+  --chart-4: var(--color-pending-600);
+  --chart-5: var(--color-ice-100);
+  --radius: 0.5rem; /* 8px - drives radius-lg (buttons, inputs, selects) */
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--color-navy-900);
+  --sidebar-primary: var(--color-navy-700);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--color-ice-100);
+  --sidebar-accent-foreground: var(--color-navy-900);
+  --sidebar-border: #e7ecf1;
+  --sidebar-ring: var(--color-navy-700);
+}
+
+/* Dark mode is out of scope for this pass (see NOTES.md) - left at shadcn's
+   generated defaults so the tokens exist and nothing breaks if it is enabled
+   later, but no brand tuning has gone into it. */
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    @apply font-sans;
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
-    font-family: var(--font-sans);
+    @apply antialiased bg-background text-foreground;
   }
 
-  /* Visible focus for keyboard users on every interactive element. */
-  :focus-visible {
-    @apply outline-2 outline-offset-2 outline-brand-600;
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  /*
+   * Every migrated shadcn control already ships its own focus-visible ring
+   * (`outline-none` + `focus-visible:ring-*`), so a second blanket outline
+   * here would double up as a ring-plus-outline halo on every button and
+   * input. This fallback is scoped to plain native elements that are not
+   * wrapped in a shadcn primitive - links inside prose copy, for instance.
+   */
+  a:focus-visible,
+  summary:focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
   }
 }
 
 @layer utilities {
-  /* Tabular figures keep timestamp columns from jittering between rows. */
+  /* Tabular figures keep timestamp and asset-code columns from jittering
+     between rows. */
   .tnum {
     font-variant-numeric: tabular-nums;
   }
