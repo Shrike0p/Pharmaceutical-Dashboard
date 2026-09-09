@@ -11,6 +11,7 @@ import { authRouter } from "./modules/auth/auth.routes.ts";
 import { globalCleaningRecordRouter } from "./modules/cleaning-records/global-cleaning-record.routes.ts";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes.ts";
 import { equipmentRouter } from "./modules/equipment/equipment.routes.ts";
+import { userRouter } from "./modules/users/user.routes.ts";
 
 /**
  * Builds the app without starting a listener, so the integration tests can
@@ -44,6 +45,7 @@ export function buildApp(): Express {
   app.use("/api/cleaning-records", globalCleaningRecordRouter);
   app.use("/api/audit", auditRouter);
   app.use("/api/dashboard", dashboardRouter);
+  app.use("/api/users", userRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

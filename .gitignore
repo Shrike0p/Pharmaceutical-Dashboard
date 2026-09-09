@@ -29,3 +29,12 @@ pnpm-debug.log*
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# AI agent tooling — design-skill references and their lockfile, plus the raw
+# brand source files (the copies actually used by the app live under
+# apps/web/public/, already committed). Not project source; kept local only.
+.agents/
+DESIGN.md
+skills-lock.json
+/brand.png
+/favicon.ico
