@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { loginSchema, type LoginInput } from "@ecl/shared";
+import { changePasswordSchema, loginSchema, type ChangePasswordInput, type LoginInput } from "@ecl/shared";
 import { authenticate, requireUser } from "../../middleware/authenticate.ts";
 import { body, validateBody } from "../../middleware/validate.ts";
-import { listUsers, login } from "./auth.service.ts";
+import { changeOwnPassword, listUsers, login } from "./auth.service.ts";
 
 export const authRouter: Router = Router();
 
@@ -14,6 +14,16 @@ authRouter.post("/login", validateBody(loginSchema), async (req, res) => {
 authRouter.get("/me", authenticate, (req, res) => {
   res.status(200).json({ data: requireUser(req) });
 });
+
+authRouter.post(
+  "/password",
+  authenticate,
+  validateBody(changePasswordSchema),
+  async (req, res) => {
+    await changeOwnPassword(requireUser(req).id, body<ChangePasswordInput>(req));
+    res.status(204).send();
+  },
+);
 
 /**
  * Used by the cleaning-record form to populate the "cleaned by" picker.
