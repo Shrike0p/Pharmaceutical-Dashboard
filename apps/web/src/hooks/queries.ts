@@ -1,14 +1,24 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import type {
+  AuditAction,
   AuditEntryDto,
+  ChangePasswordInput,
+  CleaningMethod,
   CleaningRecordDto,
   CreateCleaningRecordInput,
   CreateEquipmentInput,
+  CreateUserInput,
+  DashboardStatsDto,
   EquipmentDto,
+  GlobalAuditEntryDto,
+  GlobalCleaningRecordDto,
   Paginated,
   PaginationMode,
   RecordStatus,
+  Role,
   UpdateCleaningRecordInput,
+  UpdateUserInput,
+  UserAdminDto,
   UserSummaryDto,
 } from "@ecl/shared";
 import { apiRequest, buildQuery } from "../lib/api-client";
@@ -19,11 +29,15 @@ import { apiRequest, buildQuery } from "../lib/api-client";
  */
 export const queryKeys = {
   users: ["users"] as const,
+  usersAdmin: (params: UserAdminListParams) => ["users", "admin", params] as const,
   equipmentList: (params: EquipmentListParams) => ["equipment", "list", params] as const,
   equipment: (id: string) => ["equipment", "detail", id] as const,
   records: (equipmentId: string, params: RecordListParams) =>
     ["equipment", equipmentId, "records", params] as const,
   audit: (recordId: string) => ["records", recordId, "audit"] as const,
+  globalRecords: (params: GlobalRecordListParams) => ["records", "global", params] as const,
+  globalAudit: (params: GlobalAuditListParams) => ["audit", "global", params] as const,
+  dashboardStats: ["dashboard", "stats"] as const,
 };
 
 export interface EquipmentListParams {
@@ -38,6 +52,37 @@ export interface RecordListParams {
   limit: number;
   status?: RecordStatus;
   cursor?: string;
+}
+
+export interface GlobalRecordListParams {
+  mode: PaginationMode;
+  page: number;
+  limit: number;
+  status?: RecordStatus;
+  cursor?: string;
+  equipmentId?: string;
+  cleanedById?: string;
+  method?: CleaningMethod;
+  from?: string;
+  to?: string;
+}
+
+export interface GlobalAuditListParams {
+  page: number;
+  limit: number;
+  action?: AuditAction;
+  changedById?: string;
+  equipmentId?: string;
+  field?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface UserAdminListParams {
+  page: number;
+  limit: number;
+  role?: Role;
+  isActive?: boolean;
 }
 
 // --- Reads ----------------------------------------------------------------
@@ -101,6 +146,77 @@ export function useAuditTrail(equipmentId: string | undefined, recordId: string 
   });
 }
 
+/** Cross-equipment cleaning records — the Cleaning Records page. */
+export function useGlobalCleaningRecords(params: GlobalRecordListParams) {
+  return useQuery({
+    queryKey: queryKeys.globalRecords(params),
+    queryFn: () =>
+      apiRequest<Paginated<GlobalCleaningRecordDto>>(
+        `/api/cleaning-records${buildQuery({
+          mode: params.mode,
+          page: params.mode === "offset" ? params.page : undefined,
+          limit: params.limit,
+          status: params.status,
+          cursor: params.mode === "cursor" ? params.cursor : undefined,
+          equipmentId: params.equipmentId,
+          cleanedById: params.cleanedById,
+          method: params.method,
+          from: params.from,
+          to: params.to,
+        })}`,
+      ),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** The compliance-wide audit trail — the Audit & Compliance page. */
+export function useGlobalAuditTrail(params: GlobalAuditListParams) {
+  return useQuery({
+    queryKey: queryKeys.globalAudit(params),
+    queryFn: () =>
+      apiRequest<Paginated<GlobalAuditEntryDto>>(
+        `/api/audit${buildQuery({
+          page: params.page,
+          limit: params.limit,
+          action: params.action,
+          changedById: params.changedById,
+          equipmentId: params.equipmentId,
+          field: params.field,
+          from: params.from,
+          to: params.to,
+        })}`,
+      ),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useDashboardStats() {
+  return useQuery({
+    queryKey: queryKeys.dashboardStats,
+    queryFn: () => apiRequest<{ data: DashboardStatsDto }>("/api/dashboard/stats").then((r) => r.data),
+    // Stats are a summary, not a live counter — a moderate staleness is fine
+    // and keeps the overview page from refetching on every focus.
+    staleTime: 60_000,
+  });
+}
+
+/** The account-management table — supervisor only. */
+export function useUsersAdmin(params: UserAdminListParams) {
+  return useQuery({
+    queryKey: queryKeys.usersAdmin(params),
+    queryFn: () =>
+      apiRequest<Paginated<UserAdminDto>>(
+        `/api/users${buildQuery({
+          page: params.page,
+          limit: params.limit,
+          role: params.role,
+          isActive: params.isActive === undefined ? undefined : String(params.isActive),
+        })}`,
+      ),
+    placeholderData: keepPreviousData,
+  });
+}
+
 // --- Writes ---------------------------------------------------------------
 
 /**
@@ -151,6 +267,39 @@ export function useCreateEquipment() {
       ),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["equipment", "list"] });
+    },
+  });
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (input: ChangePasswordInput) =>
+      apiRequest<void>("/api/auth/password", { method: "POST", body: input }),
+  });
+}
+
+export function useCreateUserAdmin() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateUserInput) =>
+      apiRequest<{ data: UserAdminDto }>("/api/users", { method: "POST", body: input }).then(
+        (r) => r.data,
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+}
+
+export function useUpdateUserAdmin() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, input }: { userId: string; input: UpdateUserInput }) =>
+      apiRequest<{ data: UserAdminDto }>(`/api/users/${userId}`, { method: "PATCH", body: input }).then(
+        (r) => r.data,
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["users"] });
     },
   });
 }
