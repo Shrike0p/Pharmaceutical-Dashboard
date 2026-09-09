@@ -45,13 +45,19 @@ enum AuditAction {
 }
 
 model User {
-  id           String   @id @default(uuid(7))
-  email        String   @unique
-  name         String
-  passwordHash String   @map("password_hash")
-  role         Role     @default(OPERATOR)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id            String    @id @default(uuid(7))
+  email         String    @unique
+  name          String
+  passwordHash  String    @map("password_hash")
+  role          Role      @default(OPERATOR)
+  /// Set when a supervisor deactivates the account. Deactivation rather than
+  /// deletion, for the same reason equipment is retired rather than deleted:
+  /// this id is referenced by audit rows (as the actor) and cleaning records
+  /// (as who performed or verified a cleaning) that must not lose their
+  /// subject. `login` refuses any account with this set.
+  deactivatedAt DateTime? @map("deactivated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   cleaningsPerformed CleaningRecord[] @relation("CleanedBy")
   cleaningsVerified  CleaningRecord[] @relation("VerifiedBy")
@@ -96,9 +102,9 @@ model CleaningRecord {
 
   // Restrict, not Cascade: cleaning history is evidence. Removing a piece of
   // equipment must never silently destroy the record of it having been cleaned.
-  equipment  Equipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
-  cleanedBy  User      @relation("CleanedBy", fields: [cleanedById], references: [id], onDelete: Restrict)
-  verifiedBy User?     @relation("VerifiedBy", fields: [verifiedById], references: [id], onDelete: Restrict)
+  equipment  Equipment  @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  cleanedBy  User       @relation("CleanedBy", fields: [cleanedById], references: [id], onDelete: Restrict)
+  verifiedBy User?      @relation("VerifiedBy", fields: [verifiedById], references: [id], onDelete: Restrict)
   auditLogs  AuditLog[]
 
   // Serves both the default ordering and keyset pagination, which seeks on the
