@@ -6,3 +6,4 @@ export * from "./dashboard";
 export * from "./enums";
 export * from "./equipment";
 export * from "./pagination";
+export * from "./users";
