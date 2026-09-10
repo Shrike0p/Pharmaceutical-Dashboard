@@ -18,20 +18,26 @@ Design decisions and trade-offs are in **[NOTES.md](./NOTES.md)**.
 
 ## Live demo
 
-> **TODO before submitting — replace both URLs and delete this line.**
+### 👉 **[pharmaceutical-dashboard.vercel.app](https://pharmaceutical-dashboard.vercel.app/)**
+
+Sign in as **Supervisor** — `priya.nair@example.com` / `Password123!` — for the full picture; only a
+supervisor can verify a record or provision an account. The sign-in page lists all
+[three roles](#sign-in-credentials) and fills the form when you click one.
+
+**The API is on a free instance that sleeps when idle, so the first sign-in can take up to a minute
+while it wakes.** Everything after that is fast, and the form tells you what it is waiting for. The
+landing page is static and always loads immediately — a slow *sign-in* is the API waking, not a
+broken app.
+
+[![The Overview dashboard: verification backlog, 30-day activity chart, recent audit activity](./apps/web/public/marketing/overview.png)](https://pharmaceutical-dashboard.vercel.app/)
 
 | | |
 |---|---|
-| **App** | https://REPLACE-ME.vercel.app |
-| **API health** | https://REPLACE-ME.onrender.com/api/health |
+| **App** | https://pharmaceutical-dashboard.vercel.app |
+| **API** | https://equipment-cleaning-log-api.onrender.com/api/health |
 
-Sign in with any of the [demo accounts](#sign-in-credentials) — the sign-in page lists all three and
-fills the form when you click one. Start as **Supervisor** (`priya.nair@example.com`) for the full
-picture: only a supervisor can verify a record or provision an account.
-
-**The API is on a free instance that sleeps when idle, so the first sign-in can take up to a minute
-while it wakes.** Everything after that is fast. The landing page is static and always loads
-immediately, so a slow sign-in is the API waking rather than the app being broken.
+Hosted on Vercel (web) · Render (API) · Neon (PostgreSQL) — see
+[docs/deployment.md](./docs/deployment.md).
 
 ---
 
@@ -399,15 +405,38 @@ Config lives in [`render.yaml`](./render.yaml) and [`apps/web/vercel.json`](./ap
 
 ## Design artifacts
 
-The four diagrams are at the top of **[NOTES.md](./NOTES.md)**. These pages carry the detail behind
-each one; the code is the source of truth.
+Drawn while designing the system. The code is the source of truth; each links to a page with the
+detail behind it.
 
-| Diagram | Covers |
-|---|---|
-| [Product flow](./docs/01-product-flow.md) | Core loop, record lifecycle, role permissions, navigation |
-| [Database design](./docs/02-database-design.md) | ERD, subject-vs-actor split, indexes, immutability |
-| [API contract](./docs/03-api-contract.md) | Endpoints by role, error shape, pagination, request lifecycle |
-| [Request/response flow](./docs/04-request-response-flow.md) | The audited write, write conflicts, sign-in, front-end data flow |
+### Product flow
+
+![Product flow: equipment, cleaning record, verification, audit log](./docs/diagrams/product-flow.png)
+
+Equipment → cleaning event → verification → audit trail. Every change, the verification included,
+lands in the trail. → [detail](./docs/01-product-flow.md)
+
+### Database design
+
+![Database design: users, equipment, cleaning records, audit logs](./docs/diagrams/database-design.png)
+
+Two separate references from `User` into a cleaning record — who *performed* it and who *signed it
+off* — plus a third from the audit log for who *edited* the row. Those being three different people
+is the point of the model. → [detail](./docs/02-database-design.md)
+
+### API contract
+
+![API contract: auth, equipment CRUD, nested cleaning records, audit](./docs/diagrams/api-contract.png)
+
+The core surface. Supporting routes — the two cross-equipment reads, provisioning, dashboard,
+health — are in the → [detail](./docs/03-api-contract.md)
+
+### Request → response
+
+![Request to response: the transaction opens, reads inside it, diffs, writes both rows, commits](./docs/diagrams/request-response.png)
+
+The transaction opens *before* the prior state is read, at `SERIALIZABLE`, and the record update and
+audit insert commit together or not at all. That ordering is the whole defence — see
+[NOTES.md §4](./NOTES.md#4-audit-trail-design). → [detail](./docs/04-request-response-flow.md)
 
 The reasoning behind every decision is in [NOTES.md](./NOTES.md).
 
