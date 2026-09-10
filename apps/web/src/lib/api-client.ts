@@ -71,10 +71,40 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   if (response.status === 204) return undefined as T;
 
   const text = await response.text();
-  const payload: unknown = text ? JSON.parse(text) : undefined;
+
+  // Not every non-2xx response comes from this API in this API's shape — a
+  // proxy 502 or a dev-server HTML error page would make a bare `JSON.parse`
+  // throw `SyntaxError: Unexpected token '<'`, which then surfaces to the user
+  // as that literal string instead of a real message.
+  let payload: unknown;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      if (!response.ok) {
+        throw new ApiError(
+          response.status,
+          "INTERNAL_ERROR",
+          `The server returned an unexpected response (status ${response.status}).`,
+          [],
+        );
+      }
+      throw new ApiError(response.status, "INTERNAL_ERROR", "The server returned malformed JSON.", []);
+    }
+  }
 
   if (!response.ok) {
     const error = (payload as ApiErrorBody | undefined)?.error;
+
+    // A rejected token means the session is over. Clearing it here — at the
+    // one place every request funnels through — is what stops an expired
+    // session from turning every page into a permanent error state that no
+    // amount of retrying or navigating can escape.
+    if (response.status === 401 && tokenStore.get()) {
+      tokenStore.clear();
+      onUnauthorized?.();
+    }
+
     throw new ApiError(
       response.status,
       error?.code ?? "INTERNAL_ERROR",
@@ -84,6 +114,16 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return payload as T;
+}
+
+/**
+ * Set once by the auth provider. A module-level hook rather than an import of
+ * the auth module, which would be a cycle: auth imports this file.
+ */
+let onUnauthorized: (() => void) | undefined;
+
+export function setUnauthorizedHandler(handler: (() => void) | undefined): void {
+  onUnauthorized = handler;
 }
 
 /** Builds a query string, omitting undefined and empty values. */

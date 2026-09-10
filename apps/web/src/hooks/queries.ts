@@ -10,6 +10,7 @@ import type {
   CreateUserInput,
   DashboardStatsDto,
   EquipmentDto,
+  EquipmentStatus,
   GlobalAuditEntryDto,
   GlobalCleaningRecordDto,
   Paginated,
@@ -44,6 +45,7 @@ export interface EquipmentListParams {
   page: number;
   limit: number;
   search?: string;
+  status?: EquipmentStatus;
 }
 
 export interface RecordListParams {
@@ -101,7 +103,12 @@ export function useEquipmentList(params: EquipmentListParams) {
     queryKey: queryKeys.equipmentList(params),
     queryFn: () =>
       apiRequest<Paginated<EquipmentDto>>(
-        `/api/equipment${buildQuery({ page: params.page, limit: params.limit, search: params.search })}`,
+        `/api/equipment${buildQuery({
+          page: params.page,
+          limit: params.limit,
+          search: params.search,
+          status: params.status,
+        })}`,
       ),
     // Keeps the previous page on screen while the next one loads, instead of
     // collapsing the table to a skeleton on every page change.
@@ -220,9 +227,12 @@ export function useUsersAdmin(params: UserAdminListParams) {
 // --- Writes ---------------------------------------------------------------
 
 /**
- * After any write the record list and that record's audit trail are both stale,
- * so both are invalidated. Forgetting the second is what makes an audit panel
- * appear to "miss" the change the user just made.
+ * Writing one cleaning record invalidates six things, because six views read
+ * some projection of it. Forgetting the audit key is what makes a trail appear
+ * to "miss" the change just made; forgetting the three global keys is worse,
+ * because `staleTime` (30s) and `refetchOnWindowFocus: false` mean the
+ * cross-equipment Records list, the compliance Audit trail and the dashboard
+ * counters keep serving the pre-write values with no visible reason.
  */
 function useRecordInvalidation(equipmentId: string) {
   const client = useQueryClient();
@@ -230,6 +240,9 @@ function useRecordInvalidation(equipmentId: string) {
     void client.invalidateQueries({ queryKey: ["equipment", equipmentId, "records"] });
     void client.invalidateQueries({ queryKey: queryKeys.equipment(equipmentId) });
     void client.invalidateQueries({ queryKey: ["equipment", "list"] });
+    void client.invalidateQueries({ queryKey: ["records", "global"] });
+    void client.invalidateQueries({ queryKey: ["audit", "global"] });
+    void client.invalidateQueries({ queryKey: queryKeys.dashboardStats });
     if (recordId) void client.invalidateQueries({ queryKey: queryKeys.audit(recordId) });
   };
 }
@@ -267,6 +280,10 @@ export function useCreateEquipment() {
       ),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["equipment", "list"] });
+      // The Equipment page's summary tiles read the dashboard read model, so
+      // without this a newly added asset does not move the counts above the
+      // table it just appeared in.
+      void client.invalidateQueries({ queryKey: queryKeys.dashboardStats });
     },
   });
 }
