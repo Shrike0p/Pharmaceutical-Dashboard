@@ -401,8 +401,17 @@ which is a bad trade for exactly those transactions. `apps/web` is a static SPA,
 
 ### 1. Database — Neon
 
-Create a project and copy the **direct** connection string, not the `-pooler` one (this service has
-its own pool). Then apply the schema and seed it **from your machine** — no paid shell required:
+Neon gives you two connection strings and they are not interchangeable:
+
+| Use | String | Why |
+|---|---|---|
+| Migrations & seed | **direct** (no `-pooler`) | `prisma migrate` takes advisory locks, which transaction pooling cannot hold |
+| The running API | **`-pooler`** | Free compute suspends when idle; PgBouncer absorbs the reconnect instead of handing the next request a dead socket |
+
+Transaction pooling keeps a whole transaction on one server connection, so `SERIALIZABLE` is
+unaffected, and node-postgres uses unnamed prepared statements, so there is nothing to disable.
+
+Apply the schema and seed it **from your machine** with the *direct* string — no paid shell required:
 
 ```bash
 DATABASE_URL="postgresql://…neon.tech/neondb?sslmode=require" \
@@ -424,7 +433,7 @@ settings. Then set the three secrets it marks `sync: false`:
 
 | Variable | Value |
 |---|---|
-| `DATABASE_URL` | the Neon string from step 1 |
+| `DATABASE_URL` | the Neon **`-pooler`** string (not the direct one used for migrations) |
 | `JWT_SECRET` | `openssl rand -base64 48` — 32 chars minimum or the app refuses to boot |
 | `CORS_ORIGIN` | the Vercel origin from step 3, exact, no trailing slash |
 

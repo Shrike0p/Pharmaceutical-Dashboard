@@ -13,10 +13,10 @@ services:
     name: equipment-cleaning-log-api
     runtime: node
     plan: free
-    # Keep this in the same region as the Neon project. A mismatch sends every
+    # Matches the Neon project's region (AWS us-east-2). A mismatch sends every
     # query across a continent and the app feels slow for reasons that have
     # nothing to do with the code.
-    region: oregon
+    region: ohio
     # Root of the repo, not apps/api: this is a pnpm workspace and the install
     # needs the root lockfile. `pnpm install` also runs the api's postinstall,
     # which generates the Prisma client — that is gitignored, so the build
@@ -38,9 +38,17 @@ services:
         value: info
       # Set these in the dashboard on first deploy.
       #
-      # DATABASE_URL — the Neon connection string. Use the direct one, not the
-      #   -pooler variant: this service keeps its own pool, so PgBouncer adds
-      #   nothing and only complicates SERIALIZABLE transactions.
+      # DATABASE_URL — the Neon **-pooler** connection string.
+      #   Neon's free compute suspends after a few minutes idle, which drops
+      #   open connections; a direct pg pool then hands the next request a dead
+      #   socket and that request fails once before the pool replaces it.
+      #   PgBouncer absorbs the suspend/resume instead, so the request is merely
+      #   slow. Transaction pooling keeps a whole transaction on one server
+      #   connection, so SERIALIZABLE is unaffected, and node-postgres uses
+      #   unnamed prepared statements so there is nothing to disable.
+      #   Migrations are the exception and must use the direct string — they
+      #   take advisory locks, which transaction pooling cannot hold. They are
+      #   run from a laptop, not from here (see README).
       # JWT_SECRET  — 32 characters minimum or the app refuses to boot.
       #   Generate with: openssl rand -base64 48
       #   Deliberately not `generateValue: true`, because the length of a
