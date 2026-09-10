@@ -7,6 +7,16 @@ The workflow the system models, and the rules that constrain it.
 
 ---
 
+## Design sketch
+
+![Product flow — equipment, cleaning record, verification, audit log](./diagrams/product-flow.png)
+
+The original hand-drawn version, using the same assets and people as the seed data. It matches the
+implementation; the diagrams below add the record's state machine, the role matrix and the screen
+map, which the sketch does not cover.
+
+---
+
 ## The core loop
 
 ```mermaid

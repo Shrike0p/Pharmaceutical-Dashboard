@@ -14,6 +14,18 @@ lives in [NOTES.md](../NOTES.md).
 | 3 | [API contract](./03-api-contract.md) | Endpoint surface by role, error shape, pagination shapes, request lifecycle |
 | 4 | [Request/response flow](./04-request-response-flow.md) | The audited write, write conflicts, sign-in, front-end data flow |
 
+## Two versions of each, on purpose
+
+Every page opens with the **hand-drawn sketch** made while designing the system
+([`diagrams/`](./diagrams/)), then gives the **as-built** version in Mermaid.
+
+Keeping both is more useful than keeping one. The sketch shows what was reasoned about up front; the
+Mermaid version shows what shipped. Where they differ, the difference is stated on the page rather
+than quietly corrected — the schema in particular grew a `users` table and the verification columns
+after the first sketch, and that gap is worth seeing rather than airbrushing.
+
+The Mermaid version is the one to trust. The sketch is history.
+
 ## Why Mermaid rather than images
 
 They render inline on GitHub, they stay diffable in review, and they cannot silently drift out of

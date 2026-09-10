@@ -5,6 +5,28 @@ what happens when two people edit the same record at once.
 
 ---
 
+## Design sketch
+
+![Request to response flow sketch — React through service, diff engine and one transaction](./diagrams/request-response.png)
+
+The original hand-drawn flow, and it is right about the important part: the service reads the old
+record, diffs it against the new data, and the record update and audit insert land in **one**
+transaction that commits together.
+
+Two things the sketch draws slightly differently from the implementation:
+
+- **The read is inside the transaction, not before it.** The sketch shows *Old Record* being fetched
+  and then a *Database Transaction* beginning. In the code `BEGIN` comes first and the `SELECT`
+  happens within it, at `SERIALIZABLE` — which is the entire defence against two concurrent
+  `PATCH`es both reading the same prior state and writing entries that claim the same old value.
+  Reading first and then opening a transaction would reintroduce exactly that bug.
+- **Middleware is not shown.** Authentication, the role gate and Zod validation all run before the
+  service, and the actor the audit entry records comes from that middleware — never from the body.
+
+The sequence below is the as-built version.
+
+---
+
 ## The audited write
 
 `PATCH /api/equipment/:equipmentId/cleaning-records/:recordId`

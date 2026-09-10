@@ -585,9 +585,23 @@ source of truth, and where the two disagree the code is right.
 | [API contract](./docs/03-api-contract.md) | Endpoint surface by role, error shape, pagination shapes, request lifecycle |
 | [Request/response flow](./docs/04-request-response-flow.md) | The audited write, write conflicts, sign-in, front-end data flow |
 
-They are written as Mermaid, so they render inline on GitHub and stay diffable in review rather than
-becoming stale binaries. Every diagram in `docs/` is validated as part of writing it — a broken
-diagram renders as a parse error, which is worse than no diagram.
+**Each page carries both versions: the hand-drawn sketch, then the as-built diagram in Mermaid.**
+
+That is deliberate. The sketches ([`docs/diagrams/`](./docs/diagrams/)) are what I reasoned about
+before writing code; the Mermaid versions are what shipped. Keeping both shows the design actually
+moving, and where they disagree the page says so instead of quietly correcting it. The two
+substantive gaps, both in the direction of the implementation being larger:
+
+- The database sketch has **no `users` table**, so it cannot show the subject-vs-actor split (§4) —
+  the thing the whole audit design turns on. It also predates `verified_by_id`/`verified_at` on the
+  record and `action`/`reason` on the trail.
+- The request/response sketch reads the prior state *before* opening the transaction. In the
+  implementation the `SELECT` is **inside** it, at `SERIALIZABLE`, which is the entire defence
+  described in §4. Drawn the sketch's way, the concurrency bug is back.
+
+The as-built diagrams are Mermaid rather than exported images so they render inline on GitHub, stay
+diffable in review, and cannot silently drift from the schema. Every block is validated by rendering
+it — a diagram that fails to parse is worse than no diagram, and two did before they were fixed.
 
 To edit them as shapes rather than text: paste the Mermaid source into
 [mermaid.live](https://mermaid.live) to export SVG/PNG, or use Excalidraw's *Mermaid to Excalidraw*

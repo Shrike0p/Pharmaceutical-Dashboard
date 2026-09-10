@@ -478,8 +478,10 @@ the production URL.
 
 ## Design artifacts
 
-Diagrams drawn while designing the system, in [`docs/`](./docs/). Written as Mermaid so they render
-inline on GitHub and stay diffable — the code is still the source of truth.
+Diagrams in [`docs/`](./docs/). Each page carries the **hand-drawn sketch** made while designing the
+system, then the **as-built** version in Mermaid — which renders inline on GitHub, stays diffable,
+and cannot silently drift from the schema. Where the two differ, the page says how; the code is the
+source of truth.
 
 | Diagram | Covers |
 |---|---|
