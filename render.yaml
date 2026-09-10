@@ -1,0 +1,56 @@
+# Render Blueprint for the API only. The web app is a static SPA on Vercel and
+# PostgreSQL is on Neon, so this file describes one long-running Node service.
+#
+# Why a long-running service rather than serverless functions: the API connects
+# through @prisma/adapter-pg (a real pg TCP pool), does its writes inside
+# SERIALIZABLE transactions, and owns a graceful-shutdown path. On a function
+# runtime each invocation would open its own pool and need PgBouncer in front,
+# which is a poor trade for those transactions.
+#
+# Create with: Render dashboard -> New -> Blueprint -> pick this repo.
+services:
+  - type: web
+    name: equipment-cleaning-log-api
+    runtime: node
+    plan: free
+    # Keep this in the same region as the Neon project. A mismatch sends every
+    # query across a continent and the app feels slow for reasons that have
+    # nothing to do with the code.
+    region: oregon
+    # Root of the repo, not apps/api: this is a pnpm workspace and the install
+    # needs the root lockfile. `pnpm install` also runs the api's postinstall,
+    # which generates the Prisma client — that is gitignored, so the build
+    # cannot succeed without it.
+    buildCommand: corepack enable && pnpm install && pnpm --filter @ecl/api build
+    startCommand: pnpm --filter @ecl/api start
+    # Returns { status, database }, so a failing database shows up as an
+    # unhealthy deploy rather than as 500s on first use.
+    healthCheckPath: /api/health
+    envVars:
+      # Prisma 7 refuses odd-numbered Node releases, and the root package.json
+      # allows >=20 — without this pin a host may choose 23 and the install
+      # fails with a confusing preinstall error.
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      # Set these in the dashboard on first deploy.
+      #
+      # DATABASE_URL — the Neon connection string. Use the direct one, not the
+      #   -pooler variant: this service keeps its own pool, so PgBouncer adds
+      #   nothing and only complicates SERIALIZABLE transactions.
+      # JWT_SECRET  — 32 characters minimum or the app refuses to boot.
+      #   Generate with: openssl rand -base64 48
+      #   Deliberately not `generateValue: true`, because the length of a
+      #   generated value is not guaranteed to clear that check.
+      # CORS_ORIGIN — the exact Vercel production origin, no trailing slash.
+      #   It is an exact-match list, so preview URLs will not be allowed.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+    # PORT is injected by Render and read by src/config/env.ts — do not set it.
