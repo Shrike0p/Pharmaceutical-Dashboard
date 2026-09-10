@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,10 +29,18 @@ const DEMO_ACCOUNTS = [
 ];
 const DEMO_PASSWORD = "Password123!";
 
+/**
+ * How long a sign-in may take before we explain why. The demo API runs on a
+ * free instance that sleeps when idle, and a cold start is ~30-60s — long
+ * enough that a silent spinner reads as "broken" rather than "waking".
+ */
+const SLOW_SIGN_IN_MS = 4000;
+
 export function SignInPage() {
   const { signIn } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [isSlow, setIsSlow] = useState(false);
 
   const {
     register,
@@ -53,6 +61,15 @@ export function SignInPage() {
       setFormError(error instanceof ApiError ? error.message : "Unable to sign in. Please try again.");
     }
   });
+
+  useEffect(() => {
+    if (!isSubmitting) {
+      setIsSlow(false);
+      return;
+    }
+    const timeout = setTimeout(() => setIsSlow(true), SLOW_SIGN_IN_MS);
+    return () => clearTimeout(timeout);
+  }, [isSubmitting]);
 
   function fillDemoAccount(email: string) {
     setValue("email", email, { shouldValidate: true });
@@ -113,6 +130,13 @@ export function SignInPage() {
               <Button type="submit" disabled={isSubmitting} className="h-11 w-full rounded-full text-base">
                 {isSubmitting ? "Signing in…" : "Sign in"}
               </Button>
+
+              {isSlow ? (
+                <p role="status" className="text-center text-xs text-muted-foreground">
+                  Still going — the demo API sleeps when idle, so the first sign-in can take up to a
+                  minute to wake it. Later requests are fast.
+                </p>
+              ) : null}
             </form>
 
             <div className="mt-8">
