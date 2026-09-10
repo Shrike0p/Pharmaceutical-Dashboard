@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
 import { CommandPalette } from "./CommandPalette";
@@ -27,12 +26,18 @@ function pageTitle(pathname: string): string {
 
 export function AppShell() {
   const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(sidebarPreference.get);
+  const [pinned, setPinned] = useState(sidebarPreference.get);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const scrollerRef = useRef<HTMLElement>(null);
 
-  function updateSidebarOpen(open: boolean) {
-    setSidebarOpen(open);
-    sidebarPreference.set(open);
+  useEffect(() => {
+    scrollerRef.current?.scrollTo({ top: 0 });
+  }, [location.pathname]);
+
+  function updatePinned(next: boolean) {
+    setPinned(next);
+    sidebarPreference.set(next);
   }
 
   useEffect(() => {
@@ -47,15 +52,29 @@ export function AppShell() {
   }, []);
 
   return (
-    <SidebarProvider open={sidebarOpen} onOpenChange={updateSidebarOpen}>
-      <AppSidebar />
-      <SidebarInset>
-        <AppHeader title={pageTitle(location.pathname)} onOpenCommandPalette={() => setCommandOpen(true)} />
-        <main className="flex-1 overflow-y-auto">
+    // The dark ground is the frame: the sidebar sits directly on it and the
+    // content is an inset rounded panel, which is what gives the app its
+    // "sheet on a desk" depth instead of two flat columns meeting at a border.
+    <div className="flex h-dvh w-full overflow-hidden bg-shell-950 md:gap-1 md:p-2.5">
+      <AppSidebar pinned={pinned} mobileOpen={mobileOpen} onMobileOpenChange={setMobileOpen} />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-3xl md:ring-1 md:ring-white/10">
+        <AppHeader
+          title={pageTitle(location.pathname)}
+          pinned={pinned}
+          onPinnedChange={updatePinned}
+          onOpenCommandPalette={() => setCommandOpen(true)}
+          onOpenMobileNav={() => setMobileOpen(true)}
+        />
+        {/* The panel scrolls, not the page — so the sidebar and the rounded
+            corners stay put while the content moves. The trade-off is that the
+            browser's own scroll restoration no longer applies (it only tracks
+            the document scroller), so without the reset below you arrive on a
+            new route already scrolled to wherever you left the last one. */}
+        <main ref={scrollerRef} className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
-      </SidebarInset>
+      </div>
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
-    </SidebarProvider>
+    </div>
   );
 }
