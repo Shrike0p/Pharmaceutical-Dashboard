@@ -53,7 +53,7 @@ export function Hero() {
           <div className="overflow-hidden rounded-[1.75rem] bg-card ring-1 ring-foreground/[0.08] shadow-[var(--shadow-card-hover)]">
             <img
               src="/marketing/overview.png"
-              alt="The Overview dashboard, showing equipment status, the verification backlog, and recent audit activity"
+              alt="The Overview dashboard, showing the verification backlog, record counts, and the last 30 days of cleaning and verification activity"
               className="w-full"
               width={1800}
               height={1125}

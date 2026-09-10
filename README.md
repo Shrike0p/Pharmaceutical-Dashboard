@@ -29,7 +29,7 @@ while it wakes.** Everything after that is fast, and the form tells you what it 
 landing page is static and always loads immediately — a slow *sign-in* is the API waking, not a
 broken app.
 
-[![The Overview dashboard: verification backlog, 30-day activity chart, recent audit activity](./apps/web/public/marketing/overview.png)](https://pharmaceutical-dashboard.vercel.app/)
+[![The Overview dashboard: the verification backlog, record counts, and the 30-day activity chart](./apps/web/public/marketing/overview.png)](https://pharmaceutical-dashboard.vercel.app/)
 
 | | |
 |---|---|
@@ -405,19 +405,21 @@ Config lives in [`render.yaml`](./render.yaml) and [`apps/web/vercel.json`](./ap
 
 ## Design artifacts
 
-Drawn while designing the system. The code is the source of truth; each links to a page with the
-detail behind it.
+Drawn while designing the system — the whole thing on one canvas: the product flow, the data model,
+the API surface, and the write path that ties them together. The code is the source of truth; each
+area below links to a page with the detail behind it.
+
+[![The design canvas: product flow, database design, API contract, and the request-to-response write path on one board](./docs/diagrams/whole-flow.png)](./docs/diagrams/whole-flow.png)
+
+*Open the image for full resolution.* The four diagrams are also embedded one at a time in
+[NOTES.md](./NOTES.md#the-system-at-a-glance).
 
 ### Product flow
-
-![Product flow: equipment, cleaning record, verification, audit log](./docs/diagrams/product-flow.png)
 
 Equipment → cleaning event → verification → audit trail. Every change, the verification included,
 lands in the trail. → [detail](./docs/01-product-flow.md)
 
 ### Database design
-
-![Database design: users, equipment, cleaning records, audit logs](./docs/diagrams/database-design.png)
 
 Two separate references from `User` into a cleaning record — who *performed* it and who *signed it
 off* — plus a third from the audit log for who *edited* the row. Those being three different people
@@ -425,14 +427,10 @@ is the point of the model. → [detail](./docs/02-database-design.md)
 
 ### API contract
 
-![API contract: auth, equipment CRUD, nested cleaning records, audit](./docs/diagrams/api-contract.png)
-
 The core surface. Supporting routes — the two cross-equipment reads, provisioning, dashboard,
 health — are in the → [detail](./docs/03-api-contract.md)
 
 ### Request → response
-
-![Request to response: the transaction opens, reads inside it, diffs, writes both rows, commits](./docs/diagrams/request-response.png)
 
 The transaction opens *before* the prior state is read, at `SERIALIZABLE`, and the record update and
 audit insert commit together or not at all. That ordering is the whole defence — see

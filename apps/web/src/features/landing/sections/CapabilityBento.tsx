@@ -67,7 +67,7 @@ export function CapabilityBento() {
             </div>
             <img
               src="/marketing/audit.png"
-              alt="The Audit and Compliance page, filtered to a single actor's changes across every asset"
+              alt="The Audit and Compliance page: every field-level change across every asset, filterable by actor, equipment, action, and field"
               className="h-full w-full border-t object-cover md:border-t-0 md:border-l"
             />
           </div>
