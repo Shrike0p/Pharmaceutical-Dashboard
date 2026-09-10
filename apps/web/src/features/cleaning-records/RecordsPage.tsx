@@ -6,14 +6,17 @@ import {
   type PaginationMode,
   type RecordStatus,
 } from "@ecl/shared";
+import { X } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { DateRangeFilter } from "@/components/date-range-filter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/data-states";
 import { RecordStatusBadge } from "@/components/status-badges";
+import { PersonCell } from "@/components/person-cell";
 import { OffsetPager } from "@/components/OffsetPager";
 import { useEquipmentList, useGlobalCleaningRecords } from "@/hooks/queries";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, parsePageParam } from "@/lib/format";
 import { pageSizePreference } from "@/lib/preferences";
 
 const STATUS_FILTERS = [
@@ -24,7 +27,7 @@ const STATUS_FILTERS = [
 
 export function RecordsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const page = Number(searchParams.get("page") ?? "1");
+  const page = parsePageParam(searchParams.get("page"));
   const status = (searchParams.get("status") ?? "ALL") as RecordStatus | "ALL";
   const method = (searchParams.get("method") ?? "ALL") as CleaningMethod | "ALL";
   const equipmentId = searchParams.get("equipmentId") ?? "ALL";
@@ -57,10 +60,14 @@ export function RecordsPage() {
 
   const pagination = records.data?.pagination;
 
+  const activeFilters = [status, method, equipmentId].filter((value) => value !== "ALL").length +
+    (from || to ? 1 : 0);
+  const matchCount = pagination && pagination.mode === "offset" ? pagination.total : undefined;
+
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 py-8 sm:px-6">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Cleaning Records</h1>
+        <h1 className="font-heading text-2xl font-bold text-foreground">Cleaning Records</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
           Every cleaning across every asset. Filter to find a specific record, then open its equipment to
           verify or review its history.
@@ -71,7 +78,7 @@ export function RecordsPage() {
         <div className="grid gap-1.5">
           <span className="text-xs text-muted-foreground">Status</span>
           <Select value={status} onValueChange={(value) => update({ status: value })}>
-            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-40" aria-label="Filter by status"><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUS_FILTERS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
@@ -85,7 +92,7 @@ export function RecordsPage() {
         <div className="grid gap-1.5">
           <span className="text-xs text-muted-foreground">Equipment</span>
           <Select value={equipmentId} onValueChange={(value) => update({ equipmentId: value })}>
-            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-48" aria-label="Filter by equipment"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All equipment</SelectItem>
               {equipmentOptions.data?.data.map((equipment) => (
@@ -100,7 +107,7 @@ export function RecordsPage() {
         <div className="grid gap-1.5">
           <span className="text-xs text-muted-foreground">Method</span>
           <Select value={method} onValueChange={(value) => update({ method: value })}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-36" aria-label="Filter by method"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All methods</SelectItem>
               {CLEANING_METHODS.map((m) => (
@@ -113,23 +120,29 @@ export function RecordsPage() {
         </div>
 
         <div className="grid gap-1.5">
-          <span className="text-xs text-muted-foreground">From</span>
-          <Input
-            type="date"
-            className="w-36"
-            value={from}
-            onChange={(event) => update({ from: event.target.value })}
-          />
+          <span className="text-xs text-muted-foreground">Date range</span>
+          <DateRangeFilter from={from} to={to} onChange={(next) => update(next)} />
         </div>
-        <div className="grid gap-1.5">
-          <span className="text-xs text-muted-foreground">To</span>
-          <Input
-            type="date"
-            className="w-36"
-            value={to}
-            onChange={(event) => update({ to: event.target.value })}
-          />
-        </div>
+
+        {activeFilters > 0 ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSearchParams(new URLSearchParams(), { replace: true })}
+          >
+            <X />
+            Clear {activeFilters === 1 ? "filter" : `${activeFilters} filters`}
+          </Button>
+        ) : null}
+
+        <p className="ml-auto text-sm text-muted-foreground tabular-nums">
+          {matchCount === undefined ? null : (
+            <>
+              <span className="font-semibold text-foreground">{matchCount}</span>{" "}
+              {matchCount === 1 ? "record" : "records"}
+            </>
+          )}
+        </p>
       </Card>
 
       <Card>
@@ -143,7 +156,7 @@ export function RecordsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-xs tracking-wide text-muted-foreground uppercase">
+                <tr className="border-b bg-muted/40 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   <th scope="col" className="px-4 py-3 font-medium">Cleaned at</th>
                   <th scope="col" className="px-4 py-3 font-medium">Equipment</th>
                   <th scope="col" className="px-4 py-3 font-medium">Cleaned by</th>
@@ -153,7 +166,7 @@ export function RecordsPage() {
               </thead>
               <tbody className="divide-y">
                 {records.data.data.map((record) => (
-                  <tr key={record.id} className="hover:bg-accent">
+                  <tr key={record.id} className="transition-colors hover:bg-accent/60">
                     <td className="px-4 py-3 whitespace-nowrap tabular-nums text-foreground">
                       {formatDateTime(record.cleanedAt)}
                     </td>
@@ -163,7 +176,7 @@ export function RecordsPage() {
                       </Link>
                       <span className="ml-1.5 text-muted-foreground">{record.equipment.name}</span>
                     </td>
-                    <td className="px-4 py-3 text-foreground">{record.cleanedBy.name}</td>
+                    <td className="px-4 py-3"><PersonCell name={record.cleanedBy.name} /></td>
                     <td className="px-4 py-3 text-muted-foreground">{CLEANING_METHOD_LABELS[record.method]}</td>
                     <td className="px-4 py-3">
                       <RecordStatusBadge status={record.status} />
