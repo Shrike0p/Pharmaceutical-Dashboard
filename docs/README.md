@@ -19,12 +19,15 @@ lives in [NOTES.md](../NOTES.md).
 Every page opens with the **hand-drawn sketch** made while designing the system
 ([`diagrams/`](./diagrams/)), then gives the **as-built** version in Mermaid.
 
-Keeping both is more useful than keeping one. The sketch shows what was reasoned about up front; the
-Mermaid version shows what shipped. Where they differ, the difference is stated on the page rather
-than quietly corrected — the schema in particular grew a `users` table and the verification columns
-after the first sketch, and that gap is worth seeing rather than airbrushing.
+Keeping both is more useful than keeping one. The sketch shows what was reasoned about while
+designing; the Mermaid version shows what shipped. Where they differ, the difference is stated on
+the page rather than quietly corrected.
 
-The Mermaid version is the one to trust. The sketch is history.
+The product-flow and database sketches match the implementation. The API sketch covers the core
+surface rather than all of it, and the request/response sketch opens its transaction one step later
+than the code does — both noted in place.
+
+**The Mermaid version is the one to trust.** The sketch is the thinking behind it.
 
 ## Why Mermaid rather than images
 

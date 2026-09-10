@@ -9,20 +9,15 @@ PostgreSQL 17 (the deployed demo runs on Neon's 18). Schema in
 
 ![Database design sketch — Equipment, CleaningRecord, AuditLog with JSONB changes](./diagrams/database-design.png)
 
-The original hand-drawn model. It is **deliberately simplified and no longer complete** — the
-implemented schema grew four things the sketch does not show, so read the ERD below as the current
-one:
+The hand-drawn model, and it matches the implemented schema: all four entities, the verification
+columns, `action` and `reason` on the trail, and a rules panel covering `ON DELETE RESTRICT`,
+audit immutability, user deactivation and the keyset index.
 
-| The sketch | The implementation |
-|---|---|
-| No `User` table | `users` exists, and is referenced **three** times — who cleaned, who verified, and who edited. This is the subject-vs-actor split, the single most important thing in the model. |
-| `CleaningRecord` ends at `status` | Adds `verified_by_id` and `verified_at` — without them a record cannot record *who* signed it off, only that someone did. |
-| `AuditLog` has `changedBy`, `changedAt`, `changes` | Adds `action` (`CREATE`\|`UPDATE`) and `reason` (why an already-verified record was amended). |
-| `cleanedBy`, `changedBy` | `cleaned_by_id`, `changed_by_id` — foreign keys, not names. |
-
-The rules panel in the sketch is accurate as far as it goes; it predates `onDelete: Restrict`,
-UUIDv7 keys and the composite index, all of which are covered below. The JSONB `changes` example is
-exactly right and is what the code stores.
+Two cosmetic differences from `schema.prisma`, neither of which changes the meaning: the sketch
+writes `cleanedBy` where the column is `cleaned_by_id` (it has `verifiedById` right), and it draws
+one `User → CleaningRecord` edge where the schema has two — `cleaned_by_id` *and* `verified_by_id`.
+The ERD below draws both, because that pair is the subject-vs-actor split the whole audit design
+turns on.
 
 ---
 

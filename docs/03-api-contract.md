@@ -9,17 +9,15 @@ shape of the contract and the reasoning behind it.
 
 ![API contract sketch — equipment CRUD, nested cleaning records, audit, query params](./diagrams/api-contract.png)
 
-The original hand-drawn contract. Every route on it is real and unchanged, but it covers the core
-CRUD surface only — the implementation adds:
+The hand-drawn contract: auth, equipment CRUD, the nested cleaning-record routes, the per-record
+audit trail and the offset query params. Every route on it is real and unchanged.
 
-- **Auth** — `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/password`
-- **Cross-equipment reads** — `GET /api/cleaning-records` and `GET /api/audit`, the two flat routes
-  that answer what a per-asset drill-down structurally cannot
-- **Account provisioning** — `GET`/`POST /api/users`, `PATCH /api/users/:id` (supervisor only)
-- **`GET /api/dashboard/stats`** and **`GET /api/health`**
-- **Keyset params** — `?mode=cursor&cursor=…` alongside the `?page=&limit=&status=` on the sketch
+It is the core surface rather than the whole of it. The implementation also has the supporting
+routes below — `POST /api/auth/password`, the two flat cross-equipment reads
+(`GET /api/cleaning-records`, `GET /api/audit`), account provisioning under `/api/users`,
+`GET /api/dashboard/stats`, `GET /api/health`, and `?mode=cursor&cursor=…` for keyset paging.
 
-One reading note: the sketch's *Audit* box wraps one path across three lines. It is a single nested
+One reading note: the sketch's *Audit* box wraps a single path across three lines. It is one nested
 route — `GET /api/equipment/:equipmentId/cleaning-records/:recordId/audit` — not three.
 
 ---

@@ -588,16 +588,19 @@ source of truth, and where the two disagree the code is right.
 **Each page carries both versions: the hand-drawn sketch, then the as-built diagram in Mermaid.**
 
 That is deliberate. The sketches ([`docs/diagrams/`](./docs/diagrams/)) are what I reasoned about
-before writing code; the Mermaid versions are what shipped. Keeping both shows the design actually
-moving, and where they disagree the page says so instead of quietly correcting it. The two
-substantive gaps, both in the direction of the implementation being larger:
+while designing; the Mermaid versions are what shipped. Keeping both shows the design actually
+moving, and where they still disagree the page says so instead of quietly correcting it.
 
-- The database sketch has **no `users` table**, so it cannot show the subject-vs-actor split (§4) —
-  the thing the whole audit design turns on. It also predates `verified_by_id`/`verified_at` on the
-  record and `action`/`reason` on the trail.
-- The request/response sketch reads the prior state *before* opening the transaction. In the
-  implementation the `SELECT` is **inside** it, at `SERIALIZABLE`, which is the entire defence
-  described in §4. Drawn the sketch's way, the concurrency bug is back.
+The product-flow and database sketches match the implementation. Two differences remain, and both
+are stated on their pages:
+
+- The **API sketch is the core surface, not all of it** — the supporting routes (the two flat
+  cross-equipment reads, provisioning, dashboard, health, keyset params) are in the as-built
+  diagram below it.
+- The **request/response sketch reads the prior state before opening the transaction.** In the
+  implementation `BEGIN` comes first and the `SELECT` happens inside it, at `SERIALIZABLE` — which
+  is the entire defence described in §4. Drawn the sketch's way, the concurrent double-write bug is
+  back, so the as-built sequence is the one to read.
 
 The as-built diagrams are Mermaid rather than exported images so they render inline on GitHub, stay
 diffable in review, and cannot silently drift from the schema. Every block is validated by rendering
