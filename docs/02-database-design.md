@@ -5,22 +5,6 @@ PostgreSQL 17 (the deployed demo runs on Neon's 18). Schema in
 
 ---
 
-## Design sketch
-
-![Database design sketch — Equipment, CleaningRecord, AuditLog with JSONB changes](./diagrams/database-design.png)
-
-The hand-drawn model, and it matches the implemented schema: all four entities, the verification
-columns, `action` and `reason` on the trail, and a rules panel covering `ON DELETE RESTRICT`,
-audit immutability, user deactivation and the keyset index.
-
-Two cosmetic differences from `schema.prisma`, neither of which changes the meaning: the sketch
-writes `cleanedBy` where the column is `cleaned_by_id` (it has `verifiedById` right), and it draws
-one `User → CleaningRecord` edge where the schema has two — `cleaned_by_id` *and* `verified_by_id`.
-The ERD below draws both, because that pair is the subject-vs-actor split the whole audit design
-turns on.
-
----
-
 ## Entity relationships
 
 ```mermaid

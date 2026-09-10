@@ -399,10 +399,8 @@ Config lives in [`render.yaml`](./render.yaml) and [`apps/web/vercel.json`](./ap
 
 ## Design artifacts
 
-Diagrams in [`docs/`](./docs/). Each page carries the **hand-drawn sketch** made while designing the
-system, then the **as-built** version in Mermaid — which renders inline on GitHub, stays diffable,
-and cannot silently drift from the schema. Where the two differ, the page says how; the code is the
-source of truth.
+The four diagrams are at the top of **[NOTES.md](./NOTES.md)**. These pages carry the detail behind
+each one; the code is the source of truth.
 
 | Diagram | Covers |
 |---|---|

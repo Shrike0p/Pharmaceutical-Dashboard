@@ -5,20 +5,6 @@ what happens when two people edit the same record at once.
 
 ---
 
-## Design sketch
-
-![Request to response flow sketch — React through service, diff engine and one transaction](./diagrams/request-response.png)
-
-The hand-drawn flow, and it matches the implementation: the transaction opens **first**, the prior
-state is read inside it at `SERIALIZABLE`, the diff runs, the record update and audit insert land
-together, and a failing audit insert rolls the whole thing back leaving the record unchanged.
-
-The only thing it leaves implicit is the middleware — authentication, the role gate and Zod
-validation all run before the service reaches the transaction, and the actor written to the audit
-entry comes from there, never from the request body. The sequence below shows that step.
-
----
-
 ## The audited write
 
 `PATCH /api/equipment/:equipmentId/cleaning-records/:recordId`

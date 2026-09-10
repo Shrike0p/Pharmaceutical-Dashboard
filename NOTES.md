@@ -39,12 +39,49 @@ section that argues it.
 | `apps/api/src/modules/cleaning-records/cleaning-record.service.ts` | Where the transaction, the isolation level and the business rules meet |
 | `apps/api/test/integration/audit.test.ts` | Forces the audit insert to fail inside the database and asserts the record is unchanged |
 
-Everything after this is the reasoning, roughly in the order the brief asks for it. The
-[diagrams](./docs/) cover the same ground visually if you would rather skim than read.
+The four diagrams below cover the same ground visually. Everything after them is the reasoning,
+roughly in the order the brief asks for it.
 
 ---
 
 
+
+## The system at a glance
+
+Four diagrams, drawn while designing it. The code is the source of truth; each links to a page with
+more detail.
+
+### Product flow
+
+![Product flow: equipment, cleaning record, verification, audit log](./docs/diagrams/product-flow.png)
+
+Equipment → cleaning event → verification → audit trail. Every change, including the verification
+itself, lands in the trail. More: [product flow](./docs/01-product-flow.md).
+
+### Database design
+
+![Database design: users, equipment, cleaning records, audit logs](./docs/diagrams/database-design.png)
+
+Note the two separate references from `User` into a cleaning record — who *performed* it and who
+*signed it off* — and a third from the audit log for who *edited* the row. Those being different
+people is the point of the model. More: [database design](./docs/02-database-design.md).
+
+### API contract
+
+![API contract: auth, equipment CRUD, nested cleaning records, audit](./docs/diagrams/api-contract.png)
+
+The core surface. The supporting routes — the two cross-equipment reads, account provisioning,
+dashboard and health — are listed in [API contract](./docs/03-api-contract.md).
+
+### Request → response
+
+![Request to response: transaction opens, reads inside it, diffs, writes both rows, commits](./docs/diagrams/request-response.png)
+
+The transaction opens *before* the prior state is read, at `SERIALIZABLE`, and the record update and
+audit insert commit together or not at all. That ordering is the whole defence described in
+[§4](#4-audit-trail-design). More: [request/response flow](./docs/04-request-response-flow.md).
+
+---
 
 ## 1. Product interpretation
 
@@ -573,34 +610,3 @@ and tracing, rate limiting, secrets management, CI-run migrations, and more gran
 policies.
 
 ---
-
-
-
-## 15. Design artifacts
-
-I drew these while reasoning about the domain, the data flow and the API boundaries before
-implementation. They are **design artifacts, not generated documentation** — the code remains the
-source of truth, and where the two disagree the code is right.
-
-
-| Diagram                                                     | Covers                                                                      |
-| ----------------------------------------------------------- | --------------------------------------------------------------------------- |
-| [Product flow](./docs/01-product-flow.md)                   | The core loop, record lifecycle, role permissions, screen navigation        |
-| [Database design](./docs/02-database-design.md)             | ERD, the subject-vs-actor split, index rationale, immutability              |
-| [API contract](./docs/03-api-contract.md)                   | Endpoint surface by role, error shape, pagination shapes, request lifecycle |
-| [Request/response flow](./docs/04-request-response-flow.md) | The audited write, write conflicts, sign-in, front-end data flow            |
-
-Each page carries the **hand-drawn sketch** made while designing, then the **as-built** version in
-Mermaid — which renders inline on GitHub, stays diffable, and cannot silently drift from the schema.
-Where the two differ, the page says how.
-
-Drawing them twice was not just documentation. Reconciling the two versions caught two errors in my
-*as-built* diagrams — the business rules were on the wrong side of the diff, and the state machine
-claimed `VERIFIED` never returns to `PENDING` when a supervisor can in fact withdraw a sign-off.
-Both diagrams were describing code that was already correct, so no test could have caught either. A
-diagram is the one artifact with no compiler.
-
-The UI work is in [docs/design-pass.md](./docs/design-pass.md), kept separate so it does not compete
-with the audit reasoning for attention.
-
-

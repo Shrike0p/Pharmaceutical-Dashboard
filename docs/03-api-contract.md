@@ -5,23 +5,6 @@ shape of the contract and the reasoning behind it.
 
 ---
 
-## Design sketch
-
-![API contract sketch — equipment CRUD, nested cleaning records, audit, query params](./diagrams/api-contract.png)
-
-The hand-drawn contract: auth, equipment CRUD, the nested cleaning-record routes, the per-record
-audit trail and the offset query params. Every route on it is real and unchanged.
-
-It is the core surface rather than the whole of it. The implementation also has the supporting
-routes below — `POST /api/auth/password`, the two flat cross-equipment reads
-(`GET /api/cleaning-records`, `GET /api/audit`), account provisioning under `/api/users`,
-`GET /api/dashboard/stats`, `GET /api/health`, and `?mode=cursor&cursor=…` for keyset paging.
-
-One reading note: the sketch's *Audit* box wraps a single path across three lines. It is one nested
-route — `GET /api/equipment/:equipmentId/cleaning-records/:recordId/audit` — not three.
-
----
-
 ## Surface
 
 ```mermaid
