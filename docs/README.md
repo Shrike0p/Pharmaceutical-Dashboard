@@ -14,6 +14,13 @@ lives in [NOTES.md](../NOTES.md).
 | 3 | [API contract](./03-api-contract.md) | Endpoint surface by role, error shape, pagination shapes, request lifecycle |
 | 4 | [Request/response flow](./04-request-response-flow.md) | The audited write, write conflicts, sign-in, front-end data flow |
 
+Two supporting docs, kept out of the main path on purpose:
+
+| | Covers |
+|---|---|
+| [Deployment runbook](./deployment.md) | How the demo is hosted, and the traps worth knowing before redeploying |
+| [The design pass](./design-pass.md) | How the UI got there — a colourblind-unsafe palette caught by a validator, deleting shadcn's sidebar, the two Three.js scenes |
+
 ## Two versions of each, on purpose
 
 Every page opens with the **hand-drawn sketch** made while designing the system

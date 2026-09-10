@@ -17,6 +17,33 @@ workflow over adding breadth to the product.
 
 ---
 
+## Start here
+
+**If you read nothing else, these are the six decisions I would want reviewed.** Each links to the
+section that argues it.
+
+| Decision | Why it matters |
+|---|---|
+| The audit actor is taken from the verified JWT, **never** the request body ([§4](#4-audit-trail-design)) | Otherwise the "who" in the trail is decoration a client can forge |
+| The prior state is read **inside** a `SERIALIZABLE` transaction ([§4](#4-audit-trail-design)) | Under `READ COMMITTED`, two concurrent edits both log the same old value. Nothing errors — the trail is just quietly wrong |
+| Immutability is a **database trigger**, not a convention ([§4](#4-audit-trail-design)) | "The application doesn't do that" does not survive a migration script or a `psql` prompt |
+| Only changed fields are recorded, and a no-op writes nothing ([§4](#4-audit-trail-design)) | A trail padded with non-changes is harder to audit, not safer |
+| Offset paging is the default; keyset exists and is **proven** by a paired test ([§5](#5-pagination-decision)) | Offset addresses a position and drifts under concurrent inserts; the test shows exactly which row repeats |
+| A supervisor cannot verify a cleaning they performed ([§6](#6-authentication--authorization)) | Segregation of duties, enforced in the API — the hidden button is only a convenience |
+
+**The three files worth opening:**
+
+| File | Why |
+|---|---|
+| `apps/api/src/domain/audit/diff.ts` | The diff engine. Pure function, no Prisma or clock, exhaustively tested |
+| `apps/api/src/modules/cleaning-records/cleaning-record.service.ts` | Where the transaction, the isolation level and the business rules meet |
+| `apps/api/test/integration/audit.test.ts` | Forces the audit insert to fail inside the database and asserts the record is unchanged |
+
+Everything after this is the reasoning, roughly in the order the brief asks for it. The
+[diagrams](./docs/) cover the same ground visually if you would rather skim than read.
+
+---
+
 
 
 ## 1. Product interpretation
@@ -377,72 +404,11 @@ the older value, silently eating characters.
 
 ### The design passes
 
-The functional build came first and looked like scaffolding. Two later passes addressed that; none of
-the audit or pagination reasoning above changed.
-
-**Elevation.** Every card carried a 1px ring and no shadow, which is the single biggest reason the
-app read as a wireframe once real content was in it. Fixed with a layered, warm-tinted shadow system
-(three stacked layers — contact, ambient, cast — because one flat blur does not read as elevation).
-
-`ink` **and** `shell` **are separate token families.** A warm near-black reads as rich black in *text*,
-but the same warmth spread across a whole sidebar reads plainly brown. Text keeps the warmth;
-surfaces get a neutral charcoal.
-
-**The recolour had quietly broken the chart's colourblind safety.** Moving the brand hue to coral
-left the activity chart plotting coral against verification green. Run through a palette validator,
-that pair measures **ΔE 4.4 for deuteranopia** — below even the "legal only with secondary encoding"
-floor, i.e. one colour to a red-green colourblind reader. It passed every eye test because it looks
-fine to normal vision (ΔE 34). Fixed by plotting the app's own **status** tokens instead
-(`pending-600` / `verify-700`, ΔE 8.8 deutan). That is more correct than what it replaced, because a
-cleaning *is* recorded into `PENDING` and later becomes `VERIFIED` — the chart now reads in the same
-two colours as every status badge. This is the strongest argument in these notes for computing
-colour rather than judging it.
-
-**Charts took the reference's energy, not its encoding.** The visual reference was a neo-brutalist
-dashboard with wide rainbow bars. Rainbow bars on nominal categories double-encode length as hue and
-burn the only free channel on information the chart already shows, so `TopAssetsChart` uses one hue
-for all seven columns, capped at 24px with a 4px rounded data-end. The verification split is a
-**meter, not a two-slice donut** — a two-segment pie is a stat tile wearing a costume. Every value
-stays readable without hovering, because a tooltip may enhance but must never gate.
-
-**The sidebar: deleting the primitive was the fix.** Restyling shadcn's sidebar kept meaning fighting
-`SidebarMenuButton`'s own `data-active` background rather than composing with it. So the ~700-line
-primitive was deleted and replaced with ~250 lines of hand-written markup. The sliding active
-indicator previously listed as "skipped for time" became three lines — one `motion.span` with a
-shared `layoutId`. The cost was never the animation; it was the primitive. It also removed the
-`TooltipProvider` crash below, which existed only because that button rendered Radix tooltips in
-collapsed mode.
-
-**Three.js, twice, with different techniques.** The landing page's first scene is a scroll-driven
-card that flips `PENDING → VERIFIED` and fans out three ghost entries: two coplanar `PlaneGeometry`
-meshes, one pre-rotated 180° and grouped, rather than extruded rounded-box geometry with
-multi-material face groups — `ExtrudeGeometry`'s material ordering for a bevelled shape is easy to
-get backwards and fails silently as a texture on the wrong face. Faces are drawn onto an offscreen
-canvas showing the exact fields the real UI shows, with `alphaTest` dropping the corners so the
-silhouette reads as rounded without rounded geometry. The second scene is ~7,000 `THREE.Points`
-converging into the brand mark, with all motion computed in the vertex shader from two static
-attributes plus a scroll uniform, so the CPU does nothing per frame.
-
-Both track scroll in a plain ref read inside a `requestAnimationFrame` loop — never `setState` for a
-continuously-changing value — pause on `IntersectionObserver`, and render one settled, informative
-frame under `prefers-reduced-motion`.
-
-**Bundle.** `three` is the heaviest dependency and every consumer reaches it through `React.lazy`, so
-it lands in one shared async chunk (~~521KB, ~130KB gzipped) that the landing page (~~39KB), the
-sign-in panel and the two dashboard hero bands share. A signed-in user who never opens a page
-carrying a canvas never downloads it. The main app chunk is ~~1.56MB (~~458KB gzipped); per-route
-splitting inside the app is the obvious next lever.
-
-**Every displayed number is raw or honestly derived.** The stat tiles' "+10 this week" is summed in
-the browser from the same `activity` array the chart renders. Where no honest derivation existed — a
-backlog-trend arrow would need historical snapshots this system does not keep — the tile got a
-descriptive line instead of a fabricated number. Likewise the sign-in panel's reference showed a
-customer testimonial; inventing a quote from a named person is exactly what this project refuses, so
-the panel carries a real artefact instead: one audit entry in the shape the database stores it.
-
----
-
-
+The functional build looked like scaffolding; two later passes fixed that. The detail — a
+colourblind-unsafe chart palette caught by a validator, deleting shadcn's sidebar rather than
+fighting it, two Three.js scenes using different techniques, and the line I would not cross on
+fabricated numbers — is in **[docs/design-pass.md](./docs/design-pass.md)**, deliberately out of
+this document so it does not compete with the audit reasoning.
 
 ## 10. Testing strategy
 
@@ -624,40 +590,17 @@ source of truth, and where the two disagree the code is right.
 | [API contract](./docs/03-api-contract.md)                   | Endpoint surface by role, error shape, pagination shapes, request lifecycle |
 | [Request/response flow](./docs/04-request-response-flow.md) | The audited write, write conflicts, sign-in, front-end data flow            |
 
-**Each page carries both versions: the hand-drawn sketch, then the as-built diagram in Mermaid.**
+Each page carries the **hand-drawn sketch** made while designing, then the **as-built** version in
+Mermaid — which renders inline on GitHub, stays diffable, and cannot silently drift from the schema.
+Where the two differ, the page says how.
 
-That is deliberate. The sketches ([`docs/diagrams/`](./docs/diagrams/)) are what I reasoned about
-while designing; the Mermaid versions are what shipped. Keeping both shows the design actually
-moving, and where they still disagree the page says so instead of quietly correcting it.
+Drawing them twice was not just documentation. Reconciling the two versions caught two errors in my
+*as-built* diagrams — the business rules were on the wrong side of the diff, and the state machine
+claimed `VERIFIED` never returns to `PENDING` when a supervisor can in fact withdraw a sign-off.
+Both diagrams were describing code that was already correct, so no test could have caught either. A
+diagram is the one artifact with no compiler.
 
-Three of the four sketches match the implementation. One difference remains, stated on its page: the
-**API sketch is the core surface, not all of it** — the supporting routes (the two flat
-cross-equipment reads, provisioning, dashboard, health, keyset params) are in the as-built diagram
-below it.
-
-Worth recording that the traffic ran **both ways**. Redrawing the request/response sketch to open
-the transaction before the read surfaced two errors in my own as-built diagrams, both settled by
-going back to the service to find out which version was right:
-
-- I had the **business rules before the diff**. In the code `buildProposedChange` applies the
-  permission rules (supervisor-only status change, no self-verify) *before* `diffFields`, and the
-  "a reason is required to amend a `VERIFIED` record" rule fires *after* it, on the far side of the
-  empty-change-set early return.
-- My state machine claimed **`VERIFIED` never returns to `PENDING`**. It does: a supervisor can
-  withdraw a sign-off, which clears `verified_by_id`/`verified_at` and — like any amendment to a
-  verified record — requires a stated reason. The trail keeps the cleared values.
-
-Neither would have been caught by a test, because both diagrams were describing code that was
-already correct. A diagram is the one artifact with no compiler.
-
-The as-built diagrams are Mermaid rather than exported images so they render inline on GitHub, stay
-diffable in review, and cannot silently drift from the schema. Every block is validated by rendering
-it — and rendering also catches what parsing does not: the record-lifecycle state machine parsed
-cleanly while overlapping its own labels into an unreadable mess, which is why its detail now sits
-in a table beside it.
-
-To edit them as shapes rather than text: paste the Mermaid source into
-[mermaid.live](https://mermaid.live) to export SVG/PNG, or use Excalidraw's *Mermaid to Excalidraw*
-import to get editable shapes on a canvas.
+The UI work is in [docs/design-pass.md](./docs/design-pass.md), kept separate so it does not compete
+with the audit reasoning for attention.
 
 
