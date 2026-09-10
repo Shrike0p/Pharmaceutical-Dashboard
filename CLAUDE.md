@@ -13,7 +13,8 @@ pnpm workspace, three packages:
 
 ```
 apps/api          Express 5 + Prisma 7 + PostgreSQL 17
-apps/web          React 19 + Vite + TanStack Query + Tailwind 4
+apps/web          React 19 + Vite + TanStack Query + shadcn/ui on Tailwind 4
+                  + a public landing page (Three.js scroll scene, its own bundle chunk)
 packages/shared   Zod schemas + DTO types, imported by BOTH apps
 ```
 
@@ -29,7 +30,7 @@ Run from the repository root.
 nvm use              # Node 24 — mandatory, see below
 pnpm install         # postinstall runs `prisma generate`
 pnpm dev             # API on :4000, web on :5173
-pnpm test            # 51 tests (unit + integration)
+pnpm test            # 77 tests (unit + integration)
 pnpm test:unit       # no database, ~150ms
 pnpm test:integration
 pnpm typecheck       # tsc --noEmit across all three packages
@@ -102,10 +103,106 @@ each of which is covered by a test:
    `prisma/migrations/*_audit_log_immutability/`. Tests and the seed reset via `TRUNCATE`, which
    does not fire row-level triggers.
 
+## Frontend architecture
+
+`apps/web/src/App.tsx` is the route tree: `/` (public landing page, lazy-loaded on its own bundle
+chunk), `/signin`, and `/app/*` behind `RequireAuth`
++ `AppShell` (sidebar, header, `⌘K` command palette). `/app/settings/users` additionally sits behind
+`RequireSupervisor`. Route guards live in `components/layout/route-guards.tsx`.
+
+`components/ui/` is shadcn/ui, generated then brand-themed (colors, radii, shadows in `index.css` and
+`components/ui/card.tsx` / `button.tsx`) — treat it as vendored-but-ours, not untouchable. Shared
+non-generated pieces: `components/data-states.tsx` (loading/empty/error), `components/status-badges.tsx`
+(the only place verification green appears), `components/person-cell.tsx` (avatar + name, used
+everywhere a person is listed in a table).
+
+**The sidebar is hand-built, not shadcn's.** `components/layout/AppSidebar.tsx` is an
+Aceternity-style hover-expanding rail (76px → 264px, labels fading in beside their icons), and
+shadcn's `components/ui/sidebar.tsx` primitive was **deleted** rather than left dead beside it.
+Notes for anyone changing it:
+
+- **The shell is a frame, not two columns.** `AppShell` paints a dark ground (`bg-shell-950`) that
+  the sidebar sits directly on, and the content is an inset `rounded-3xl` panel. The *panel* scrolls
+  (`overflow-hidden` on the shell, `overflow-y-auto` on `<main>`), so the rail and the rounded
+  corners never move.
+- **Labels stay mounted** and are clipped by the rail's `overflow-hidden`, animating opacity only.
+  Animating `display`, or unmounting the text, is what makes this pattern stutter.
+- **Expansion is `pinned || hovered`.** Hover-only is a demo affordance — the labels would never be
+  on screen while you were reading the page. `pinned` persists via `sidebarPreference`, and its
+  toggle lives in `AppHeader` because it must stay reachable while the rail is collapsed (and
+  inside the rail it stole enough width to truncate the wordmark).
+- **The active indicator is one shared `layoutId`** so it glides between entries. Desktop and mobile
+  pass different `layoutIdPrefix` values — two mounted copies sharing a `layoutId` makes motion try
+  to animate between them.
+
+**Known gotchas already hit here:**
+- **shadcn's `CommandDialog` does not wrap children in cmdk's own `<Command>` provider** in this
+  version. `CommandInput`/`CommandList` need an explicit `<Command>` ancestor
+  (`components/layout/CommandPalette.tsx`) or they crash on open reading from a context that was
+  never mounted.
+- **`Card` ships `flex flex-col` by default.** Adding `flex-wrap` to a `Card`'s className does *not*
+  cancel that direction — Tailwind treats `flex-direction` and `flex-wrap` as independent groups, so
+  both apply and content wraps into a vertical stack instead of a row. Any filter-bar-style `Card`
+  needs an explicit `flex-row`.
+
+### Three.js — three separate surfaces
+
+**Colour spaces bite here.** Three applies its linear→sRGB output conversion inside the shader
+chunks its *built-in* materials include. Every scene below uses a hand-written `ShaderMaterial`,
+which has no such chunk, so whatever the fragment shader writes is displayed as-is:
+`convertSRGBToLinear()` on a uniform therefore **darkens** rather than corrects. `SealScene` omits
+it (linearising rendered its green check near-black); `GradientCanvas` keeps it on purpose, because
+the deeper result holds contrast under white text. Don't "unify" these without looking at both.
+
+**Every consumer must `React.lazy` a Three surface.** `three` is ~519KB in its own shared async
+chunk; one eager import anywhere pulls it into the main app bundle.
+
+`features/landing/three/AuditTrailScene.tsx` is the scroll-driven 3D card on the landing page: two
+`PlaneGeometry` meshes (front/back, one pre-rotated 180°) grouped and rotated together for the flip,
+canvas-drawn textures (`three/card-textures.ts`) with `alphaTest` for rounded corners instead of
+extruded geometry. Scroll progress is tracked in a plain ref and read inside a `requestAnimationFrame`
+loop — never `setState` for a continuously-changing value. See NOTES.md for the full reasoning.
+
+`features/landing/three/SealScene.tsx` is the second landing scene and a deliberately different
+technique: ~7,000 `THREE.Points` whose motion is computed entirely in the vertex shader from two
+static attributes (start, target) plus a scroll uniform, so the CPU does nothing per frame and no
+geometry is rebuilt. Points converge into the brand mark. `depthWrite` is off — overlapping sprites
+would otherwise punch holes in each other instead of blending.
+
+`components/three/GradientCanvas.tsx` is the animated colour field: one full-screen quad running a
+domain-warped fBm fragment shader, no geometry or lights. Used on the sign-in panel (`brand`
+palette) and as the dark hero band on Overview and the equipment detail page (`shell` palette). It
+renders at 70% scale (`RENDER_SCALE`) because a smooth gradient has no detail to lose, pauses on
+`IntersectionObserver` + `document.hidden`, and renders one settled frame under
+`prefers-reduced-motion`.
+
+**`forceContextLoss()` is deliberately not called on teardown**, despite being the usual advice for
+the ~16-context limit. Chrome will not grant a new context in the same task as a forced loss, so
+any immediate remount (StrictMode's mount → cleanup → mount replay, or a fast route toggle) gets
+`null` from `getContext` and Three throws reading `capabilities.precision`, blanking the route.
+Both scenes instead create their own `<canvas>` imperatively and `.remove()` it on cleanup, which
+is what actually lets the context be collected.
+
+## Charts
+
+`dataviz` conventions are followed deliberately; the ones that bite:
+
+- **The two activity series are `pending-600` and `verify-700`, not brand coral and green.** Coral
+  vs green measures ΔE 4.4 under deuteranopia — effectively one colour to a red-green colourblind
+  reader. The status pair passes every check and matches the status badges. Do not "re-brand" it.
+- **Columns carry one hue.** `TopAssetsChart`'s categories are nominal, so per-bar colours would
+  double-encode the height. Bars are capped at 24px with a 4px rounded data-end.
+- **Verification split is a meter, not a donut.** Two slices is a stat tile wearing a costume.
+- Values are always readable without hovering (y-axis, or a label on each column) — a tooltip may
+  enhance but never gate.
+
 ## Pagination
 
-Both modes live on the cleaning-records list endpoint; offset is the default because the UI needs
-`totalPages`.
+Both modes live on the cleaning-records list endpoint (and its cross-equipment counterpart,
+`GET /api/cleaning-records`); offset is the default because the UI needs `totalPages`. The global
+audit endpoint (`GET /api/audit`) and the account-admin listing (`GET /api/users`) are offset-only —
+both are bounded reports a reviewer pages through with a known total, not a feed needing
+concurrent-insert stability.
 
 - Ordering is `(cleanedAt DESC, id DESC)`. The `id` tie-breaker is **required** — timestamps collide,
   and without a total order keyset drops rows. This is also why Prisma's built-in `cursor` option is
@@ -161,5 +258,8 @@ There are currently **no front-end tests** — a documented, deliberate gap (see
 - Amending an already-`VERIFIED` record requires a `reason`, stored on the audit entry.
 - `DELETE /api/equipment/:id` returns `409` when cleaning history exists, pointing at retiring
   instead; `onDelete: Restrict` enforces the same thing at the database level.
-- There is deliberately **no signup route** — accounts are provisioned via the seed, because
-  self-registration would undermine the traceability the audit trail exists to provide.
+- There is deliberately **no signup route** — accounts are provisioned, via the seed and via
+  `POST /api/users` (supervisor-only, `/app/settings/users` in the UI), because self-registration
+  would undermine the traceability the audit trail exists to provide.
+- Deactivating a user (`isActive: false`) does not touch `audit_logs` — that table is scoped to
+  cleaning records by design; see NOTES.md for why a second audit domain was not folded into it.

@@ -5,10 +5,12 @@ production runs, each cleaning is recorded and verified, and **every create and 
 a field-level audit trail** — who changed what, when, and from which value to which.
 
 - **API** — Node.js 24 · TypeScript · Express 5 · Prisma 7 · PostgreSQL 17
-- **Web** — React 19 · TypeScript · Vite · TanStack Query · React Hook Form · Tailwind CSS 4
+- **Web** — React 19 · TypeScript · Vite · TanStack Query · React Hook Form · shadcn/ui on Tailwind CSS 4
+- **Landing page** — a public marketing page with a scroll-driven 3D card (Three.js), on its own
+  bundle chunk so the authenticated app never downloads it
 - **Shared** — one package of Zod schemas imported by *both* sides, so the request contract cannot
   drift between client and server
-- **Tests** — Vitest, 51 tests (21 unit, 30 integration against a real PostgreSQL)
+- **Tests** — Vitest, 77 tests (backend only; see NOTES.md for the front-end test gap)
 
 Design decisions and trade-offs are in **[NOTES.md](./NOTES.md)**.
 
@@ -140,8 +142,13 @@ Seeded by `pnpm db:seed`. Password for all accounts: **`Password123!`**
 
 ### A five-minute tour
 
-1. Sign in as **Priya Nair** (supervisor).
-2. Open **Mixing Tank 02** — 28 cleaning records, so pagination has three pages.
+Open `http://localhost:5173/` first — the public landing page, with a scroll-driven 3D card (Three.js)
+showing a cleaning record flip from pending to verified and fan out into its full field-level trail.
+Click **Sign in** to reach the app.
+
+1. Sign in as **Priya Nair** (supervisor). The sidebar's **Overview** shows the verification backlog,
+   a 30-day activity chart, and recent audit entries.
+2. Open **Equipment → Mixing Tank 02** — 28 cleaning records, so pagination has three pages.
 3. Filter to **Pending**, and note the total updates with the filter, not just the visible rows.
 4. Switch **Pagination** to *Keyset (cursor)* to exercise the cursor implementation.
 5. Click **History** on a verified record — the trail shows `Pending → Verified` with the old value
@@ -149,7 +156,12 @@ Seeded by `pnpm db:seed`. Password for all accounts: **`Password123!`**
 6. Click **Edit** on a record and change *only the notes*. Reopen **History**: the new entry contains
    the notes field and nothing else.
 7. Save the form again without changing anything: **no new audit entry appears.**
-8. Sign in as **Rahul Verma** (operator) and try to verify a record — refused with a 403.
+8. Open the sidebar's **Cleaning Records** and **Audit & Compliance** pages — both work across every
+   asset at once (the per-equipment pages above are scoped to one), with their own filters.
+9. Open **⌘K** (or **Ctrl+K**) — jump to any page, or search equipment by name or code.
+10. Under **Settings → Users**, add an account, or deactivate one and confirm it can no longer sign in.
+11. Sign in as **Rahul Verma** (operator) and try to verify a record — refused with a 403, and the
+    **Users** nav item is gone entirely.
 
 ---
 
@@ -165,6 +177,15 @@ Base URL `http://localhost:4000`. All routes except `/api/health` and `/api/auth
 | `POST` | `/api/auth/login` | `{ email, password }` → `{ token, user }` |
 | `GET` | `/api/auth/me` | Current user from the token |
 | `GET` | `/api/auth/users` | Staff directory for the "cleaned by" picker |
+| `POST` | `/api/auth/password` | `{ currentPassword, newPassword }` → `204`. Takes effect on next login |
+
+### Accounts (supervisor only)
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/users` | Paginated. `?page` `?limit` `?role` `?isActive` |
+| `POST` | `/api/users` | Provision a new account. `{ name, email, role, password }` |
+| `PATCH` | `/api/users/:id` | `{ role? , isActive? }`. Refuses to deactivate your own account |
 
 ### Equipment
 
@@ -185,6 +206,14 @@ Base URL `http://localhost:4000`. All routes except `/api/health` and `/api/auth
 | `GET` | `/api/equipment/:equipmentId/cleaning-records/:recordId` | |
 | `PATCH` | `/api/equipment/:equipmentId/cleaning-records/:recordId` | Diffs, then writes record + `UPDATE` audit entry atomically |
 | `GET` | `/api/equipment/:equipmentId/cleaning-records/:recordId/audit` | Paginated history, newest first |
+
+### Cross-equipment (the Cleaning Records and Audit & Compliance pages)
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/cleaning-records` | Every record, any asset. `?mode` `?page` `?limit` `?status` `?equipmentId` `?cleanedById` `?method` `?from` `?to` |
+| `GET` | `/api/audit` | The compliance-wide trail. `?page` `?limit` `?action` `?changedById` `?equipmentId` `?field` `?from` `?to` |
+| `GET` | `/api/dashboard/stats` | Overview page: equipment/record counts, 30-day activity, recent audit entries |
 
 ### Health
 
@@ -312,9 +341,9 @@ still the default.
 ## Tests
 
 ```bash
-pnpm test                  # all 51
+pnpm test                  # all 77
 pnpm test:unit             # 21, no database, ~150 ms
-pnpm test:integration      # 30, against equipment_cleaning_log_test
+pnpm test:integration      # 56, against equipment_cleaning_log_test
 ```
 
 Integration tests run against a **real PostgreSQL**, not a mocked Prisma client, because the
@@ -329,6 +358,8 @@ migrations once per run, and truncate every table between tests.
 | `test/integration/audit.test.ts` | 10 | `CREATE` entry contents · only-changed-field recording · no entry on a no-op · actor taken from the token not the body · **rollback when the audit insert fails** · **`UPDATE`/`DELETE` rejected on `audit_logs`** · reason required to amend a verified record |
 | `test/integration/pagination.test.ts` | 12 | 25 records → 10/10/5 · filter narrows `total` too · out-of-range page · limit clamping · keyset walks the set exactly once · ties on identical timestamps · **offset drift vs keyset stability** |
 | `test/integration/auth.test.ts` | 8 | Login · identical response for wrong password and unknown account · forged token rejected · supervisor-only equipment management · supervisor-only verification · no self-verification · client-supplied `status` ignored on create |
+| `test/integration/global-lists.test.ts` | 13 | Cross-equipment filtering (asset, method, actor) · inclusive UTC day-range boundaries · invalid range rejected · keyset walks the unscoped set · global-audit field/action/actor/equipment filters, verified against the seeded data's ground truth · dashboard stats match the underlying rows |
+| `test/integration/user-management.test.ts` | 13 | Supervisor-only provisioning · duplicate email 409 · weak password rejected · deactivated account cannot log in · a supervisor cannot deactivate their own account · reactivation · role/status filters · password change requires the current password and rejects an unchanged one |
 
 ---
 
@@ -351,18 +382,25 @@ migrations once per run, and truncate every table between tests.
 │   │   │   │   └── pagination/cursor.ts        ← keyset cursor encode/decode
 │   │   │   ├── middleware/                     authenticate · validate · errors
 │   │   │   ├── modules/
-│   │   │   │   ├── auth/
+│   │   │   │   ├── auth/ · users/              login, password change, provisioning
 │   │   │   │   ├── equipment/
-│   │   │   │   └── cleaning-records/           ← transactional audit writes
+│   │   │   │   ├── cleaning-records/           ← transactional audit writes (per-asset + global)
+│   │   │   │   ├── audit/                      global compliance-wide trail
+│   │   │   │   └── dashboard/                  Overview page's stats endpoint
 │   │   │   ├── app.ts                          buildApp(), no listen()
 │   │   │   └── server.ts
 │   │   └── test/{unit,integration,helpers}/
 │   └── web/
 │       └── src/
-│           ├── components/                     ui primitives, pager
-│           ├── features/{auth,equipment,cleaning-records,audit}/
+│           ├── components/
+│           │   ├── ui/                         shadcn/ui primitives (generated, brand-themed)
+│           │   └── layout/                      AppShell · AppSidebar · CommandPalette · route guards
+│           ├── features/
+│           │   ├── auth/ (sign-in) · overview/ · equipment/ · cleaning-records/ · audit/
+│           │   ├── settings/                    profile · users · preferences
+│           │   └── landing/                     public "/" page + the Three.js scroll scene
 │           ├── hooks/queries.ts                TanStack Query layer
-│           └── lib/                            api client · auth · formatting
+│           └── lib/                            api client · auth · formatting · preferences
 ├── packages/shared/src/                        Zod schemas + DTOs (both apps)
 ├── docker-compose.yml
 ├── README.md

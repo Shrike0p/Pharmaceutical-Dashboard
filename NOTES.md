@@ -307,6 +307,9 @@ that was a check, not a committed test.
 | Front-end tests | See above. |
 | Deployment | Local-only by choice. Docker Compose is committed; there is no hosted instance. |
 | i18n, timezone selection | Timestamps render in the viewer's locale and zone via `Intl`. A real plant needs an explicit site timezone. |
+| Dark mode | The design pass deliberately kept the app light throughout — a compliance tool read for hours needs the contrast dense tables want, not atmosphere. Dark-mode CSS variables exist (inherited from shadcn's defaults) but are untuned; see the "App direction" decision below. |
+| Audit trail for account provisioning | Creating, deactivating or changing a user's role writes no audit entry. `audit_logs` is scoped to cleaning records by design (see the original audit-trail section); conflating a second, unrelated audit domain into the same table would muddy every query against it. A real system would want a separate security-event log for this. |
+| Per-route code-splitting beyond landing/app | Only the landing page (and its one heavy dependency, `three`) is split from the authenticated app. The app itself is one ~1.4MB chunk. |
 
 ---
 
@@ -323,9 +326,179 @@ that was a check, not a committed test.
    principle, but at ~70 seeded rows the planner will sequential-scan regardless, so the index is
    currently unproven rather than verified. I would want to see it used at a few hundred thousand
    rows before claiming it works.
-7. **Structured audit querying** — "every status transition in March", "everything Priya changed" —
-   which is the query an auditor actually arrives with, and which the current record-scoped endpoint
-   cannot answer.
+7. ~~**A shared-layout sliding active indicator** in the sidebar.~~ Done in the sidebar rewrite (see
+   below) — and the reason it had been expensive turned out to be the right thing to remove, not to
+   work around.
+8. **Per-route code-splitting inside the authenticated app** — right now only landing-vs-app is
+   split; Settings, Records and Audit could each be their own chunk too.
+
+---
+
+## The design pass: shell, redesign, and a marketing landing page
+
+After the functional build, a second pass added a proper application shell (sidebar, command
+palette, seven pages including account provisioning) and a public landing page. This section covers
+the decisions specific to that pass; the audit/pagination reasoning above is unchanged by any of it.
+
+### Elevation: cards had zero shadow
+
+Every `Card` in the first pass carried only a 1px ring, no `box-shadow` at all — the single biggest
+reason the app read as a wireframe rather than a finished product once real content was in it. Fixed
+with a layered, **navy-tinted** shadow system (`--shadow-card`, `--shadow-card-hover`,
+`--shadow-popover`), not the generic gray Tailwind ships or a harsh black drop-shadow. Three stacked
+layers (contact / ambient / cast) read as physical elevation; one flat blur does not. The same tokens
+now back every popover, select, dropdown and dialog, which previously used Tailwind's default
+`shadow-md`/`shadow-lg` — inconsistent with the cards sitting next to them.
+
+### Every displayed number is either a raw value or an honestly-derived one
+
+The Overview stat tiles show trend lines ("+10 this week"). These are **not** invented placeholder
+metrics — `verifiedThisWeek` and `createdThisWeek` are summed from the same `activity` array the
+chart already renders, in the browser, from real data. Where no honest derivation existed (a
+backlog-trend arrow would need historical backlog snapshots this system doesn't keep), the tile got a
+descriptive line instead ("Awaiting supervisor review") rather than a fabricated number. This was a
+deliberate line not to cross even under an explicit "make it look impressive" instruction.
+
+### The Three.js scene: two planes, not extruded geometry
+
+The landing page's centerpiece is a scroll-driven 3D card that flips from `PENDING` to `VERIFIED` and
+then reveals three "ghost" cards fanning out to show real field-level changes (status, verifiedBy,
+notes) — the audit trail, made physical.
+
+Deliberately **not** built from extruded rounded-box geometry with multi-material face groups
+(the technically "correct" way to model a physical card): `ExtrudeGeometry`'s material-group ordering
+for a beveled shape is genuinely easy to get backwards, and getting it wrong looks like a texture on
+the wrong face with no error to point at. Instead: two coplanar `PlaneGeometry` meshes, one at
+`rotation.y = 0` (front) and one pre-rotated `rotation.y = Math.PI` (back), grouped together. Animating
+the *group's* rotation from `0` to `π` makes the front plane rotate away from the camera exactly as
+the back plane rotates into view — the standard flip-card construction, verified by reading the
+rendered screenshot text at both ends (not mirrored, not garbled).
+
+Card faces are drawn by hand onto an offscreen 2D canvas — the exact fields the real UI shows
+(asset code, actor, timestamp, status), not stock art — then applied as a `CanvasTexture` with
+`alphaTest` so the plane's sharp rectangular corners disappear outside a rounded-rect drawn into the
+canvas. That is what gives a rounded card silhouette without needing rounded 3D geometry at all.
+
+Scroll is tracked with a passive `scroll` listener writing to a plain ref (never `setState` for a
+continuously-changing value — that would re-render on every pixel of scroll) and a `requestAnimationFrame`
+loop that lerps toward it, so a fast flick of the wheel settles rather than snapping. An
+`IntersectionObserver` stops the render loop entirely while the section is off-screen. Honoured
+`prefers-reduced-motion` by skipping the loop and rendering one static, fully-informative frame
+instead of nothing.
+
+### Two real crashes found only by running it, again
+
+Both slipped past `tsc` and `eslint` cleanly and only showed up as a blank page in the browser:
+
+- **The whole app rendered blank on first load.** The sidebar's collapsed-mode tooltips need an
+  ancestor `TooltipProvider`; without one, Radix throws synchronously during render and — with no
+  error boundary — React unmounts the entire tree. One `<TooltipProvider>` around `<App />` in
+  `main.tsx` fixed it.
+- **The command palette crashed the instant it opened.** This version of shadcn's `CommandDialog`
+  does not wrap its children in cmdk's own `<Command>` context provider (unlike the classic pattern
+  most existing tutorials assume) — `CommandInput`/`CommandList` were reading from a store that was
+  never mounted, throwing "Cannot read properties of undefined (reading 'subscribe')". Fixed by
+  wrapping the palette's contents in an explicit `<Command>`.
+
+A third bug was a plain CSS mistake, not a crash: three separate filter bars (Records, Audit, Users)
+all rendered as broken vertical stacks instead of a horizontal row, because shadcn's `Card` ships
+`flex flex-col` by default and adding `flex-wrap` never actually overrides that direction — Tailwind
+correctly treats `flex-direction` and `flex-wrap` as independent groups, so both applied at once.
+Fixed with an explicit `flex-row` on each of the three.
+
+### Bundle: `three` is a shared async chunk
+
+`three` is the single heaviest dependency here. Every consumer reaches it through `React.lazy`, so
+Rollup hoists it into one shared async chunk (≈519KB, ≈129KB gzipped) that the landing page
+(≈32KB), the sign-in panel and the two dashboard hero bands all share. A signed-in user who never
+opens a page carrying a canvas never downloads it, and a landing-page visitor never downloads the
+dashboard bundle (recharts, the full component set) either. The main app chunk is ~1.44MB (~422KB
+gzipped); further splitting per-route was judged not worth the added complexity for this pass and is
+the obvious next lever if bundle size becomes a real concern.
+
+---
+
+## The second design pass: split sign-in, real charts, an asset dashboard
+
+The first design pass produced a coherent theme but left several screens as unstyled scaffolding —
+a centred sign-in form, a table with no supporting context, stat tiles with no trend. This pass
+addressed those specifically.
+
+### The recolour had quietly broken the chart's colourblind safety
+
+Moving the brand hue from navy to coral left the activity chart plotting **coral against verification
+green**. Run through the palette validator, that pair measures **ΔE 4.4 for deuteranopia** — below
+even the 6–8 "legal only with secondary encoding" floor, i.e. one colour to a red-green colourblind
+reader. It passed nobody's eye test because it looks fine to normal vision (ΔE 34).
+
+Fixed by plotting the app's own **status** tokens instead: `pending-600` for Recorded and
+`verify-700` for Verified (ΔE 8.8 deutan, and the only candidate pair that also cleared 3:1 contrast
+against the card surface). That is not a compromise — it is more correct than what it replaced,
+because a cleaning *is* recorded into `PENDING` and later becomes `VERIFIED`, so the chart now reads
+in the same two colours as every status badge in the app. This is the strongest argument in these
+notes for computing colour instead of judging it.
+
+### Charts: taking the reference's energy, not its encoding
+
+The visual reference for this pass was a neo-brutalist dashboard — pure black, thick borders, wide
+rainbow bars. Two of those choices are actively wrong for data, and were not copied:
+
+- **Rainbow bars on nominal categories** double-encode bar length as hue and burn the only free
+  channel on information the chart already shows. `TopAssetsChart` uses one hue for all seven
+  columns.
+- **Very thick saturated blocks** read loud rather than confident. Columns are capped at 24px with a
+  4px rounded data-end; the band's leftover width is deliberate air.
+
+What *was* taken: bold titles, a value on every column cap (endorsed for columns, unlike a number on
+every point of a line), and hover that scales the mark — the `pop-on-hover` utility, capped at 1.5%
+because a card full of text visibly re-rasterises at larger scales.
+
+The verification split is a **meter, not a two-slice donut** — a two-segment pie is a stat tile
+wearing a costume, and the unfilled track is a lighter step of the same green ramp so the whole bar
+reads as one measure. Every chart value stays readable without hovering (a y-axis, or a direct
+label), because a tooltip may enhance but must never gate.
+
+### Dead space was the real complaint about the dashboard
+
+Two cards sat in grid rows next to a taller neighbour and stretched to match it, leaving a void under
+their content. Two different fixes, because the cause differs: the meter gets `items-start` on its
+row (it is genuinely shorter, and stretching it only adds air), while the column chart's plot is
+`flex-1` inside a `flex` card so the columns *grow* into whatever height the row sets.
+
+### The sidebar: deleting the primitive was the fix
+
+The sidebar was the last screen still wearing generated shadcn markup, and it read as the flattest
+thing in the app. Restyling it was tried first and kept running into the same wall: every
+interesting behaviour — a rail that widens on hover, labels that fade in beside their icons, one
+active pill that glides between entries — meant fighting `SidebarMenuButton`'s own `data-active`
+background and its collapsed-mode tooltips rather than composing with them.
+
+So `components/ui/sidebar.tsx` (≈700 lines) was **deleted** and replaced with ~250 lines of
+hand-written markup. Two things fell out of that immediately:
+
+- The **sliding active indicator** listed above as "skipped for time" became three lines — one
+  `motion.span` with a `layoutId`. The cost was never the animation; it was the primitive.
+- The **`TooltipProvider` gotcha disappeared entirely.** The blank-page crash documented earlier in
+  these notes existed *because* `SidebarMenuButton` rendered Radix tooltips in collapsed mode. With
+  the primitive gone, nothing in the app renders a tooltip at all. (The provider stays in
+  `main.tsx`; it costs nothing and the next tooltip will need it.)
+
+The shell changed shape too: a dark ground with the content as an inset `rounded-3xl` panel, so the
+sidebar sits *on* the page rather than beside a border. The panel scrolls rather than the page,
+which is what keeps the rail and the rounded corners still while content moves.
+
+The one deliberate departure from the reference pattern: **it can be pinned.** Hover-only expansion
+demos beautifully and is annoying to use — the labels are never on screen at the moment you are
+actually reading the page. Pinned is the persisted default; hover only expands while unpinned.
+
+### The fabrication line, again
+
+The sign-in panel's reference showed a customer testimonial card. Inventing a quote from a named
+person is exactly the kind of thing this project has refused elsewhere, so the panel carries a real
+artefact instead: one audit entry in the shape the database stores it (`Pending → Verified`, actor,
+timestamp). Same visual weight, nothing made up. For the same reason the equipment detail header
+shows only counts the API actually returns — a per-asset verified/pending split would have had to be
+derived from one page of records, which would be wrong past row ten.
 
 ---
 
