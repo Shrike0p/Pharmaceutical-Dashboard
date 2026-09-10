@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus } from "lucide-react";
 import { CLEANING_METHOD_LABELS, type CleaningRecordDto, type PaginationMode, type RecordStatus } from "@ecl/shared";
@@ -8,13 +8,18 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/data-states";
-import { EquipmentStatusBadge, RecordStatusBadge } from "@/components/status-badges";
+import { RecordStatusBadge } from "@/components/status-badges";
+import { PersonCell } from "@/components/person-cell";
 import { OffsetPager } from "@/components/OffsetPager";
 import { useCleaningRecords, useEquipment } from "@/hooks/queries";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime, formatRelativeDays, parsePageParam } from "@/lib/format";
 import { pageSizePreference, paginationModePreference } from "@/lib/preferences";
 import { CleaningRecordDialog } from "../cleaning-records/CleaningRecordDialog";
 import { AuditTrailPanel } from "../audit/AuditTrailPanel";
+
+const GradientCanvas = lazy(() =>
+  import("@/components/three/GradientCanvas").then((module) => ({ default: module.GradientCanvas })),
+);
 
 const STATUS_FILTERS = [
   { label: "All", value: "ALL" },
@@ -26,7 +31,7 @@ export function EquipmentDetailPage() {
   const { equipmentId } = useParams<{ equipmentId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const page = Number(searchParams.get("page") ?? "1");
+  const page = parsePageParam(searchParams.get("page"));
   const status = (searchParams.get("status") ?? "ALL") as RecordStatus | "ALL";
   const mode = (searchParams.get("mode") ?? paginationModePreference.get()) as PaginationMode;
   const cursor = searchParams.get("cursor") ?? undefined;
@@ -86,28 +91,71 @@ export function EquipmentDetailPage() {
         </Card>
       ) : (
         <>
-          <div className="mt-3 mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-lg font-semibold text-foreground">{equipment.data.name}</h1>
-                <EquipmentStatusBadge status={equipment.data.status} />
+          <div className="relative mt-3 mb-6 overflow-hidden rounded-3xl bg-shell-950">
+            <Suspense fallback={null}>
+              <GradientCanvas palette="shell" className="absolute inset-0" />
+            </Suspense>
+            <div
+              aria-hidden
+              className="absolute inset-0 bg-linear-to-r from-shell-950/90 via-shell-950/60 to-shell-950/15"
+            />
+
+            <div className="relative flex flex-wrap items-end justify-between gap-6 p-7">
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  {/* The same code monogram the equipment table uses, so an
+                      asset looks like itself on both screens. */}
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/15 font-mono text-xs font-bold text-white backdrop-blur-sm">
+                    {equipment.data.code.split("-")[0]?.slice(0, 3)}
+                  </span>
+                  <div className="min-w-0">
+                    <h1 className="truncate font-heading text-3xl font-bold text-white">
+                      {equipment.data.name}
+                    </h1>
+                    <p className="font-mono text-sm text-white/60">{equipment.data.code}</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      equipment.data.status === "ACTIVE"
+                        ? "bg-white/20 text-white"
+                        : "bg-white/10 text-white/60"
+                    }`}
+                  >
+                    {equipment.data.status === "ACTIVE" ? "Active" : "Retired"}
+                  </span>
+                  <span className="text-white/80 tabular-nums">
+                    <span className="font-semibold text-white">{equipment.data.cleaningRecordCount}</span>{" "}
+                    cleaning records
+                  </span>
+                  <span className="text-white/60">
+                    Last cleaned{" "}
+                    <span className="text-white/85 tabular-nums">
+                      {formatDate(equipment.data.lastCleanedAt)}
+                    </span>
+                    {formatRelativeDays(equipment.data.lastCleanedAt)
+                      ? ` · ${formatRelativeDays(equipment.data.lastCleanedAt)}`
+                      : ""}
+                  </span>
+                </div>
               </div>
-              <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
-                {equipment.data.code} · {equipment.data.cleaningRecordCount} cleaning records
-              </p>
+
+              <Button
+                onClick={() => setIsCreating(true)}
+                disabled={equipment.data.status === "RETIRED"}
+                title={
+                  equipment.data.status === "RETIRED"
+                    ? "Retired equipment cannot accept new cleaning records"
+                    : undefined
+                }
+                className="h-11 rounded-full bg-white px-5 text-base text-ink-900 shadow-none hover:bg-white/90 disabled:bg-white/30 disabled:text-white/70"
+              >
+                <Plus />
+                Record a cleaning
+              </Button>
             </div>
-            <Button
-              onClick={() => setIsCreating(true)}
-              disabled={equipment.data.status === "RETIRED"}
-              title={
-                equipment.data.status === "RETIRED"
-                  ? "Retired equipment cannot accept new cleaning records"
-                  : undefined
-              }
-            >
-              <Plus />
-              Record a cleaning
-            </Button>
           </div>
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -155,7 +203,7 @@ export function EquipmentDetailPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-left text-xs tracking-wide text-muted-foreground uppercase">
+                    <tr className="border-b bg-muted/40 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase">
                       <th scope="col" className="px-4 py-3 font-medium">
                         Cleaned at
                       </th>
@@ -175,11 +223,11 @@ export function EquipmentDetailPage() {
                   </thead>
                   <tbody className="divide-y">
                     {records.data.data.map((record) => (
-                      <tr key={record.id} className="hover:bg-accent">
+                      <tr key={record.id} className="transition-colors hover:bg-accent/60">
                         <td className="px-4 py-3 whitespace-nowrap tabular-nums text-foreground">
                           {formatDateTime(record.cleanedAt)}
                         </td>
-                        <td className="px-4 py-3 text-foreground">{record.cleanedBy.name}</td>
+                        <td className="px-4 py-3"><PersonCell name={record.cleanedBy.name} /></td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {CLEANING_METHOD_LABELS[record.method]}
                         </td>
