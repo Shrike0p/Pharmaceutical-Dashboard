@@ -46,6 +46,7 @@ immediately, so a slow sign-in is the API waking rather than the app being broke
 - [Pagination](#pagination)
 - [Tests](#tests)
 - [Deployment](#deployment)
+- [Design artifacts](#design-artifacts)
 - [Project structure](#project-structure)
 - [Scripts](#scripts)
 
@@ -472,6 +473,22 @@ the production URL.
   reset, and it truncates — so do it *before* sharing the link, not while someone is reading.
 - **Node pinning.** [`.node-version`](./.node-version) pins 24 because the root `package.json`
   allows `>=20` and Prisma 7 rejects odd-numbered majors with a confusing preinstall failure.
+
+---
+
+## Design artifacts
+
+Diagrams drawn while designing the system, in [`docs/`](./docs/). Written as Mermaid so they render
+inline on GitHub and stay diffable — the code is still the source of truth.
+
+| Diagram | Covers |
+|---|---|
+| [Product flow](./docs/01-product-flow.md) | Core loop, record lifecycle, role permissions, navigation |
+| [Database design](./docs/02-database-design.md) | ERD, subject-vs-actor split, indexes, immutability |
+| [API contract](./docs/03-api-contract.md) | Endpoints by role, error shape, pagination, request lifecycle |
+| [Request/response flow](./docs/04-request-response-flow.md) | The audited write, write conflicts, sign-in, front-end data flow |
+
+The reasoning behind every decision is in [NOTES.md](./NOTES.md).
 
 ---
 
