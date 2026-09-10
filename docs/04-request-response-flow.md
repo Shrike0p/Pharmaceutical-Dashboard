@@ -9,21 +9,13 @@ what happens when two people edit the same record at once.
 
 ![Request to response flow sketch — React through service, diff engine and one transaction](./diagrams/request-response.png)
 
-The original hand-drawn flow, and it is right about the important part: the service reads the old
-record, diffs it against the new data, and the record update and audit insert land in **one**
-transaction that commits together.
+The hand-drawn flow, and it matches the implementation: the transaction opens **first**, the prior
+state is read inside it at `SERIALIZABLE`, the diff runs, the record update and audit insert land
+together, and a failing audit insert rolls the whole thing back leaving the record unchanged.
 
-Two things the sketch draws slightly differently from the implementation:
-
-- **The read is inside the transaction, not before it.** The sketch shows *Old Record* being fetched
-  and then a *Database Transaction* beginning. In the code `BEGIN` comes first and the `SELECT`
-  happens within it, at `SERIALIZABLE` — which is the entire defence against two concurrent
-  `PATCH`es both reading the same prior state and writing entries that claim the same old value.
-  Reading first and then opening a transaction would reintroduce exactly that bug.
-- **Middleware is not shown.** Authentication, the role gate and Zod validation all run before the
-  service, and the actor the audit entry records comes from that middleware — never from the body.
-
-The sequence below is the as-built version.
+The only thing it leaves implicit is the middleware — authentication, the role gate and Zod
+validation all run before the service reaches the transaction, and the actor written to the audit
+entry comes from there, never from the request body. The sequence below shows that step.
 
 ---
 
@@ -52,14 +44,15 @@ sequenceDiagram
     S->>PG: SELECT record (inside the transaction)
     PG-->>S: before
     S->>S: check record belongs to equipment → 404
-    S->>S: business rules<br/>(supervisor-only verify, no self-verify,<br/>reason required to amend VERIFIED)
-    S->>D: diffFields(before, patch, ALLOW_LIST)
+    S->>S: buildProposedChange — permission rules<br/>supervisor-only status change, no self-verify
+    S->>D: diffFields(before, proposed, ALLOW_LIST)
     D-->>S: change set
 
     alt change set is empty
         S->>PG: COMMIT
         Note right of S: no audit row written —<br/>a no-op adds nothing to the trail
     else has changes
+        S->>S: reason required to amend a VERIFIED record → 400
         S->>PG: UPDATE cleaning_records
         S->>PG: INSERT audit_logs { action, changedById, changes, reason }
         S->>PG: COMMIT

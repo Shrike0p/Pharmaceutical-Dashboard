@@ -17,6 +17,8 @@ workflow over adding breadth to the product.
 
 ---
 
+
+
 ## 1. Product interpretation
 
 I treated the assignment as a slice of a larger pharmaceutical manufacturing system rather than as a
@@ -48,28 +50,34 @@ Diagrams: [product flow](./docs/01-product-flow.md).
 
 ---
 
+
+
 ## 2. Requirements → implementation
 
-| Requirement | Implementation |
-|---|---|
-| Equipment CRUD | Equipment module; `DELETE` refuses when history exists (§8) |
-| Cleaning record CRUD | Cleaning-records module, nested under equipment |
-| Pagination | Offset (default) + keyset, both server-side (§5) |
-| Status filtering | Query parameter, validated server-side with a shared Zod schema |
-| Audit trail | Field-level diff stored as JSONB (§4) |
-| Audit actor | Derived from the verified JWT, never the request body |
-| Atomic audit | Record update + audit insert in one `SERIALIZABLE` transaction |
-| Audit immutability | PostgreSQL trigger rejects `UPDATE`/`DELETE` |
-| Authentication | JWT, bcrypt-hashed passwords |
-| Authorization | Operator / Supervisor / Auditor, with segregation of duties |
-| Validation | Zod schemas in `packages/shared`, used by both apps |
-| Tests | 77 — 21 unit, 56 integration against real PostgreSQL |
-| Local reproducibility | Docker Compose, or local PostgreSQL |
-| Deployment | Vercel (web) + Render (API) + Neon (PostgreSQL) |
+
+| Requirement           | Implementation                                                  |
+| --------------------- | --------------------------------------------------------------- |
+| Equipment CRUD        | Equipment module; `DELETE` refuses when history exists (§8)     |
+| Cleaning record CRUD  | Cleaning-records module, nested under equipment                 |
+| Pagination            | Offset (default) + keyset, both server-side (§5)                |
+| Status filtering      | Query parameter, validated server-side with a shared Zod schema |
+| Audit trail           | Field-level diff stored as JSONB (§4)                           |
+| Audit actor           | Derived from the verified JWT, never the request body           |
+| Atomic audit          | Record update + audit insert in one `SERIALIZABLE` transaction  |
+| Audit immutability    | PostgreSQL trigger rejects `UPDATE`/`DELETE`                    |
+| Authentication        | JWT, bcrypt-hashed passwords                                    |
+| Authorization         | Operator / Supervisor / Auditor, with segregation of duties     |
+| Validation            | Zod schemas in `packages/shared`, used by both apps             |
+| Tests                 | 77 — 21 unit, 56 integration against real PostgreSQL            |
+| Local reproducibility | Docker Compose, or local PostgreSQL                             |
+| Deployment            | Vercel (web) + Render (API) + Neon (PostgreSQL)                 |
+
 
 Extra features were added only where they strengthened this core workflow rather than widening it.
 
 ---
+
+
 
 ## 3. Architecture decisions
 
@@ -81,12 +89,12 @@ React → REST → middleware → route → service → Prisma → PostgreSQL
 the service, return a response. Services own domain behaviour — authorization-sensitive operations,
 diff generation, transactions, pagination, business rules.
 
-The rule that enforces it: **Express `req`/`res` types never enter a service.** Services take plain
+The rule that enforces it: **Express** `req`**/**`res` **types never enter a service.** Services take plain
 arguments and return plain data. That is what makes the audit and pagination logic testable without
 constructing an HTTP request, and it is why the diff engine lives in `domain/` rather than inside
 the service that calls it.
 
-**`buildApp()` is separate from `listen()`.** `src/app.ts` returns the configured app;
+`buildApp()` **is separate from** `listen()`**.** `src/app.ts` returns the configured app;
 `src/server.ts` owns the port and graceful shutdown. Supertest drives the app in-process with no
 network, and the same separation is what would make a serverless adaptation possible if it were ever
 wanted.
@@ -108,6 +116,8 @@ Diagrams: [API contract](./docs/03-api-contract.md), [request/response flow](./d
 
 ---
 
+
+
 ## 4. Audit trail design
 
 The most important design problem in the assignment.
@@ -124,7 +134,7 @@ JWT → authenticate middleware → req.user → service → audit.changedById
 There is deliberately no code path that lets a request body nominate the actor, and a test sends a
 `changedById` in the body to assert it is ignored.
 
-**`cleanedById` (the subject) is a different person from `changedById` (the actor).** The brief's
+`cleanedById` **(the subject) is a different person from** `changedById` **(the actor).** The brief's
 `cleanedBy` conflates them. An operator can file a record for a cleaning a colleague performed; a
 supervisor can fix a typo on someone else's record. A regulator cares about both and about telling
 them apart. `cleanedById` is chosen in the form and is itself an audited field.
@@ -135,13 +145,15 @@ them apart. `cleanedById` is chosen in the form and is itself an audited field.
 Express, no clock — which is what makes it exhaustively testable. Three subtleties it exists to get
 right:
 
-- **`undefined` is not `null`.** On a `PATCH`, `{}` means "change nothing" and `{ notes: null }`
-  means "erase the notes". Conflating them would let an empty request body wipe a record *and record
-  it as though that were intended*.
+- `undefined` **is not** `null`**.** On a `PATCH`, `{}` means "change nothing" and `{ notes: null }`
+means "erase the notes". Conflating them would let an empty request body wipe a record *and record
+it as though that were intended*.
 - **Dates compare by value.** Two `Date` objects for the same instant are `!==`. Comparing by
-  reference would log a spurious `cleanedAt` transition on every single update.
+reference would log a spurious `cleanedAt` transition on every single update.
 - **The field list is an allow-list**, not "every key on the object". This keeps `id`/`createdAt` out
-  of the trail and stops a caller smuggling an arbitrary key in via the request body.
+of the trail and stops a caller smuggling an arbitrary key in via the request body.
+
+
 
 ### Only changed fields, and a no-op writes nothing
 
@@ -187,10 +199,12 @@ seed and the test suite need to reset the database. It requires table ownership,
 administrative act rather than something application code can reach. The stronger answer is a
 least-privilege role with `INSERT`/`SELECT` only — see §14.
 
-*Verified on the deployed database, not just locally: `UPDATE` and `DELETE` against `audit_logs` on
+*Verified on the deployed database, not just locally:* `UPDATE` *and* `DELETE` *against* `audit_logs` *on
 Neon both fail with "audit_logs is append-only".*
 
 ---
+
+
 
 ## 5. Pagination decision
 
@@ -208,13 +222,13 @@ insertion, offset repeats a specific known row, keyset returns the correct next 
 
 Two details worth pointing at:
 
-- **The order is `(cleanedAt DESC, id DESC)`, not `cleanedAt` alone.** Two cleanings can share a
-  timestamp; without the tie-breaker the order is not total and keyset drops rows. This is also why
-  Prisma's built-in `cursor` option was not used — it seeks on a single unique column and cannot
-  express "same timestamp, smaller id". There is a test with six records sharing one timestamp.
-- **The cursor is base64url of `{ cleanedAt, id }` and is not signed.** It encodes only values the
-  caller can already see in the response, so signing would protect nothing. It *is* schema-validated
-  on the way in, so a tampered cursor yields `400` rather than a crash or a strange query.
+- **The order is** `(cleanedAt DESC, id DESC)`**, not** `cleanedAt` **alone.** Two cleanings can share a
+timestamp; without the tie-breaker the order is not total and keyset drops rows. This is also why
+Prisma's built-in `cursor` option was not used — it seeks on a single unique column and cannot
+express "same timestamp, smaller id". There is a test with six records sharing one timestamp.
+- **The cursor is base64url of** `{ cleanedAt, id }` **and is not signed.** It encodes only values the
+caller can already see in the response, so signing would protect nothing. It *is* schema-validated
+on the way in, so a tampered cursor yields `400` rather than a crash or a strange query.
 
 `limit` is **clamped** to 100 rather than rejected — a client asking for 10 000 gets 100, not an
 error it has to handle.
@@ -223,6 +237,8 @@ The global audit endpoint and the user-admin listing are offset-only: both are b
 reviewer pages through with a known total, not feeds needing concurrent-insert stability.
 
 ---
+
+
 
 ## 6. Authentication & authorization
 
@@ -234,8 +250,8 @@ Three roles, and two rules that are more than decoration:
 
 - Only a `SUPERVISOR` can move a record `PENDING → VERIFIED`.
 - **A supervisor cannot verify a cleaning they are recorded as having performed.** Segregation of
-  duties. The UI hides the button *and* the API refuses it, because a UI check is a convenience, not
-  a control.
+duties. The UI hides the button *and* the API refuses it, because a UI check is a convenience, not
+a control.
 
 Amending an already-verified record requires a stated `reason`, stored on the audit entry rather
 than on the record.
@@ -247,12 +263,12 @@ otherwise the endpoint doubles as an email-enumeration oracle.
 **Trade-offs taken knowingly:**
 
 - The identity is reconstructed from the token's claims rather than re-read from the database each
-  request. Stateless and cheap, but a role change does not take effect until the token expires.
+request. Stateless and cheap, but a role change does not take effect until the token expires.
 - The token is kept in `localStorage`, which is XSS-readable. An httpOnly cookie plus CSRF
-  protection is the better answer for a real deployment; it was not worth the extra moving parts
-  here.
+protection is the better answer for a real deployment; it was not worth the extra moving parts
+here.
 - No refresh-token rotation, revocation list, password reset, email verification, OAuth or rate
-  limiting on login. Those add infrastructure without improving what the brief asks for.
+limiting on login. Those add infrastructure without improving what the brief asks for.
 
 **There is deliberately no signup route.** Accounts are provisioned by a supervisor
 (`POST /api/users`, and `/app/settings/users` in the UI). Self-registration would let anyone mint the
@@ -261,11 +277,13 @@ exists to provide. The absence is a decision, not an omission — so the sign-in
 
 ---
 
+
+
 ## 7. Database decisions
 
 Full ERD and index rationale: [database design](./docs/02-database-design.md).
 
-**`changes` is JSONB, not a column per field.** Different updates touch different fields; the
+`changes` **is JSONB, not a column per field.** Different updates touch different fields; the
 alternative (`old_status`/`new_status`/`old_notes`/…) needs a migration every time the record gains a
 field and leaves most columns null on most rows. The cost is that the trail is not statically typed
 at the database level and "show me every status transition" needs a JSON operator. That is the right
@@ -277,7 +295,7 @@ to `null`) before storage.
 pagination, while ids stay opaque in URLs. Auto-increment integers would leak how many records exist
 and make ids guessable; UUIDv4 would give up the sortable tie-breaker.
 
-**`onDelete: Restrict` everywhere, no cascades.** Deleting equipment must not silently take its
+`onDelete: Restrict` **everywhere, no cascades.** Deleting equipment must not silently take its
 cleaning history; deleting a record must not take its audit trail. Cascades are convenient and
 exactly wrong here. Users are **deactivated**, never deleted, for the same reason: their id is
 referenced by rows whose subject must not disappear.
@@ -293,6 +311,8 @@ while `@prisma/client@latest` is `7.10.0` — so it is pinned. Each of those fai
 than loudly; see §13.
 
 ---
+
+
 
 ## 8. API design
 
@@ -318,17 +338,19 @@ which is why no route in this codebase wraps itself in `try/catch`. Validated in
 
 ### Two domain rules that bend the brief
 
-**`DELETE /api/equipment/:id` refuses when cleaning history exists** (`409`, pointing at
+`DELETE /api/equipment/:id` **refuses when cleaning history exists** (`409`, pointing at
 `PATCH { status: "RETIRED" }`). The brief says "CRUD for equipment"; this is a literal reading bent
 slightly. Destroying cleaning history to tidy up an asset list is precisely what a regulated system
 must not permit. Delete still works for equipment with no history, so the "D" is genuinely there.
 Happy to change it if a plain hard delete was the intent.
 
-**A record always starts `PENDING`.** `status` is not accepted on create — a client-supplied
+**A record always starts** `PENDING`**.** `status` is not accepted on create — a client-supplied
 `"VERIFIED"` is ignored, with a test to prove it. Letting the author self-declare a record verified
 would defeat the two-person rule the field exists to express.
 
 ---
+
+
 
 ## 9. Frontend decisions
 
@@ -362,7 +384,7 @@ the audit or pagination reasoning above changed.
 app read as a wireframe once real content was in it. Fixed with a layered, warm-tinted shadow system
 (three stacked layers — contact, ambient, cast — because one flat blur does not read as elevation).
 
-**`ink` and `shell` are separate token families.** A warm near-black reads as rich black in *text*,
+`ink` **and** `shell` **are separate token families.** A warm near-black reads as rich black in *text*,
 but the same warmth spread across a whole sidebar reads plainly brown. Text keeps the warmth;
 surfaces get a neutral charcoal.
 
@@ -406,9 +428,9 @@ continuously-changing value — pause on `IntersectionObserver`, and render one 
 frame under `prefers-reduced-motion`.
 
 **Bundle.** `three` is the heaviest dependency and every consumer reaches it through `React.lazy`, so
-it lands in one shared async chunk (~521KB, ~130KB gzipped) that the landing page (~39KB), the
+it lands in one shared async chunk (~~521KB, ~130KB gzipped) that the landing page (~~39KB), the
 sign-in panel and the two dashboard hero bands share. A signed-in user who never opens a page
-carrying a canvas never downloads it. The main app chunk is ~1.56MB (~458KB gzipped); per-route
+carrying a canvas never downloads it. The main app chunk is ~~1.56MB (~~458KB gzipped); per-route
 splitting inside the app is the obvious next lever.
 
 **Every displayed number is raw or honestly derived.** The stat tiles' "+10 this week" is summed in
@@ -419,6 +441,8 @@ customer testimonial; inventing a quote from a named person is exactly what this
 the panel carries a real artefact instead: one audit entry in the shape the database stores it.
 
 ---
+
+
 
 ## 10. Testing strategy
 
@@ -437,11 +461,11 @@ ordering under ties — do not exist in a mock. A mocked suite would be self-con
 Two tests I would point a reviewer at:
 
 - **Rollback on audit failure.** It installs a temporary trigger that makes the audit insert throw,
-  issues a real `PATCH`, and asserts the record is unchanged and no entry was written. Forcing the
-  failure *inside the database* exercises the transaction for real.
+issues a real `PATCH`, and asserts the record is unchanged and no entry was written. Forcing the
+failure *inside the database* exercises the transaction for real.
 - **Offset drift vs keyset stability.** The same scenario run twice: offset repeats a specific known
-  row, keyset returns exactly the two rows that genuinely follow. It asserts *which* row repeats, not
-  merely that some overlap exists, so it cannot pass vacuously.
+row, keyset returns exactly the two rows that genuinely follow. It asserts *which* row repeats, not
+merely that some overlap exists, so it cannot pass vacuously.
 
 The goal was not to maximise test count but to cover the failure modes most likely to make the system
 quietly wrong.
@@ -455,6 +479,8 @@ picker's timezone handling.
 
 ---
 
+
+
 ## 11. Docker & deployment
 
 **Locally**, `docker-compose.yml` brings up PostgreSQL 17 so a reviewer needs one command and no
@@ -462,11 +488,13 @@ local database. A local PostgreSQL works equally well; the README documents both
 
 **Deployed** as three free tiers, one per concern:
 
-| Piece | Host |
-|---|---|
-| PostgreSQL | Neon (AWS us-east-2) |
-| API | Render web service (`render.yaml` blueprint) |
-| Web | Vercel |
+
+| Piece      | Host                                         |
+| ---------- | -------------------------------------------- |
+| PostgreSQL | Neon (AWS us-east-2)                         |
+| API        | Render web service (`render.yaml` blueprint) |
+| Web        | Vercel                                       |
+
 
 **The API is deployed as a long-running process, not serverless functions.** It keeps a real `pg`
 connection pool, writes inside `SERIALIZABLE` transactions, and owns a graceful-shutdown path. On a
@@ -477,44 +505,50 @@ adaptation is *possible*; it just is not the right default here.
 Three things this took to get right, all of which failed in ways that looked like something else:
 
 - **Neon's two connection strings are not interchangeable.** Migrations use the **direct** string
-  because `prisma migrate` takes advisory locks, which transaction pooling cannot hold. The running
-  API uses the **`-pooler`** string, because Neon's free compute suspends when idle and a direct pool
-  hands the next request a dead socket; PgBouncer absorbs the reconnect instead. Transaction pooling
-  keeps a whole transaction on one server connection, so `SERIALIZABLE` is unaffected.
-- **`VITE_API_URL` is inlined at build time.** Setting it after the first deploy leaves the previous
-  bundle pointing at `localhost:4000`, so every visitor's browser calls their own machine. It needs a
-  rebuild, not just a variable.
-- **`CORS_ORIGIN` must be a bare origin.** A value copied from the address bar carries a trailing
-  slash, and a browser's `Origin` header never does — so it matches nothing. The failure is
-  invisible from the server side: every request still returns 200 to `curl` while the browser
-  silently drops the response for want of an `Access-Control-Allow-Origin` header. Diagnosed by
-  diffing the preflight headers for both spellings.
+because `prisma migrate` takes advisory locks, which transaction pooling cannot hold. The running
+API uses the `-pooler` string, because Neon's free compute suspends when idle and a direct pool
+hands the next request a dead socket; PgBouncer absorbs the reconnect instead. Transaction pooling
+keeps a whole transaction on one server connection, so `SERIALIZABLE` is unaffected.
+- `VITE_API_URL` **is inlined at build time.** Setting it after the first deploy leaves the previous
+bundle pointing at `localhost:4000`, so every visitor's browser calls their own machine. It needs a
+rebuild, not just a variable.
+- `CORS_ORIGIN` **must be a bare origin.** A value copied from the address bar carries a trailing
+slash, and a browser's `Origin` header never does — so it matches nothing. The failure is
+invisible from the server side: every request still returns 200 to `curl` while the browser
+silently drops the response for want of an `Access-Control-Allow-Origin` header. Diagnosed by
+diffing the preflight headers for both spellings.
 
 **Node 24 is pinned** in `.nvmrc` and `.node-version`, because the root `package.json` allows `>=20`
 while Prisma 7 rejects odd-numbered majors with a confusing preinstall failure.
 
 ---
 
+
+
 ## 12. What I intentionally did not build
 
 The assignment is scoped as a few hours' work, so I avoided turning it into a production ERP.
 
-| Left out | Why |
-|---|---|
-| Electronic signatures (21 CFR Part 11) | Meaning-of-signature, re-authentication at signing, signature manifestations. Real requirements for this domain, well beyond the brief. |
-| Audit trail for `Equipment` | The brief specifies auditing cleaning records. The diff engine is generic and would extend to it, but I did not want to imply scope that was not asked for. |
-| Audit trail for account provisioning | `audit_logs` is scoped to cleaning records by design; folding a second, unrelated audit domain into the same table would muddy every query against it. A real system wants a separate security-event log. |
-| Audit export / compliance reports | An auditor eventually wants a signed PDF or CSV, not a web panel. |
-| Soft deletes and record versioning | The audit trail already reconstructs history; a second mechanism would be redundant. |
-| Barcode/QR scanning, batch management, SOP documents, photo attachments | Natural next steps for a real product, unnecessary to demonstrate the requested slice. |
-| Approval workflows beyond verification | The two-person rule is the part the brief actually asks about. |
-| Notifications / email infrastructure | Infrastructure without insight. |
-| Multi-tenancy | A different architecture, not a feature. |
-| Front-end tests | §10. |
-| Dark mode | A compliance tool read for hours wants the contrast dense tables need. Dark-mode tokens exist (inherited from shadcn) but are untuned. |
-| i18n, timezone selection | Timestamps render in the viewer's locale via `Intl`. A real plant needs an explicit site timezone. |
+
+| Left out                                                                | Why                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Electronic signatures (21 CFR Part 11)                                  | Meaning-of-signature, re-authentication at signing, signature manifestations. Real requirements for this domain, well beyond the brief.                                                                   |
+| Audit trail for `Equipment`                                             | The brief specifies auditing cleaning records. The diff engine is generic and would extend to it, but I did not want to imply scope that was not asked for.                                               |
+| Audit trail for account provisioning                                    | `audit_logs` is scoped to cleaning records by design; folding a second, unrelated audit domain into the same table would muddy every query against it. A real system wants a separate security-event log. |
+| Audit export / compliance reports                                       | An auditor eventually wants a signed PDF or CSV, not a web panel.                                                                                                                                         |
+| Soft deletes and record versioning                                      | The audit trail already reconstructs history; a second mechanism would be redundant.                                                                                                                      |
+| Barcode/QR scanning, batch management, SOP documents, photo attachments | Natural next steps for a real product, unnecessary to demonstrate the requested slice.                                                                                                                    |
+| Approval workflows beyond verification                                  | The two-person rule is the part the brief actually asks about.                                                                                                                                            |
+| Notifications / email infrastructure                                    | Infrastructure without insight.                                                                                                                                                                           |
+| Multi-tenancy                                                           | A different architecture, not a feature.                                                                                                                                                                  |
+| Front-end tests                                                         | §10.                                                                                                                                                                                                      |
+| Dark mode                                                               | A compliance tool read for hours wants the contrast dense tables need. Dark-mode tokens exist (inherited from shadcn) but are untuned.                                                                    |
+| i18n, timezone selection                                                | Timestamps render in the viewer's locale via `Intl`. A real plant needs an explicit site timezone.                                                                                                        |
+
 
 ---
+
+
 
 ## 13. Known limitations
 
@@ -535,7 +569,7 @@ the tier is free.
 the planner will sequential-scan regardless. I would want `EXPLAIN ANALYZE` at a few hundred thousand
 rows before claiming it works.
 
-**`TRUNCATE` bypasses the immutability trigger** (§4) — mitigated by table ownership, properly fixed
+`TRUNCATE` **bypasses the immutability trigger** (§4) — mitigated by table ownership, properly fixed
 by a least-privilege role.
 
 **Role changes are not immediate** — the identity comes from token claims, so a change takes effect
@@ -550,19 +584,21 @@ submitting anything, because the machine you built on always has state a reviewe
 
 ---
 
+
+
 ## 14. Future production considerations
 
 In rough order of what I would do next:
 
-1. **Retry `P2034` server-side** once or twice with a short backoff before surfacing a 409. Right now
-   the burden is on the client.
+1. **Retry** `P2034` **server-side** once or twice with a short backoff before surfacing a 409. Right now
+  the burden is on the client.
 2. **A least-privilege database role** — `INSERT`/`SELECT` only on `audit_logs`. Stronger than the
-   trigger and it closes the `TRUNCATE` gap.
-3. **Move the token out of `localStorage`** to an httpOnly cookie with CSRF protection.
-4. **A generic `auditable` service wrapper** so a second entity gets a trail by configuration rather
-   than by copying the transaction block.
+  trigger and it closes the `TRUNCATE` gap.
+3. **Move the token out of** `localStorage` to an httpOnly cookie with CSRF protection.
+4. **A generic** `auditable` **service wrapper** so a second entity gets a trail by configuration rather
+  than by copying the transaction block.
 5. **Front-end tests**, starting with the audit timeline.
-6. **`EXPLAIN ANALYZE` the keyset query at scale.**
+6. `EXPLAIN ANALYZE` **the keyset query at scale.**
 7. **Per-route code-splitting** inside the authenticated app.
 
 Beyond that, and genuinely outside this scope: a real identity provider / SSO, electronic-signature
@@ -572,18 +608,21 @@ policies.
 
 ---
 
+
+
 ## 15. Design artifacts
 
 I drew these while reasoning about the domain, the data flow and the API boundaries before
 implementation. They are **design artifacts, not generated documentation** — the code remains the
 source of truth, and where the two disagree the code is right.
 
-| Diagram | Covers |
-|---|---|
-| [Product flow](./docs/01-product-flow.md) | The core loop, record lifecycle, role permissions, screen navigation |
-| [Database design](./docs/02-database-design.md) | ERD, the subject-vs-actor split, index rationale, immutability |
-| [API contract](./docs/03-api-contract.md) | Endpoint surface by role, error shape, pagination shapes, request lifecycle |
-| [Request/response flow](./docs/04-request-response-flow.md) | The audited write, write conflicts, sign-in, front-end data flow |
+
+| Diagram                                                     | Covers                                                                      |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------- |
+| [Product flow](./docs/01-product-flow.md)                   | The core loop, record lifecycle, role permissions, screen navigation        |
+| [Database design](./docs/02-database-design.md)             | ERD, the subject-vs-actor split, index rationale, immutability              |
+| [API contract](./docs/03-api-contract.md)                   | Endpoint surface by role, error shape, pagination shapes, request lifecycle |
+| [Request/response flow](./docs/04-request-response-flow.md) | The audited write, write conflicts, sign-in, front-end data flow            |
 
 **Each page carries both versions: the hand-drawn sketch, then the as-built diagram in Mermaid.**
 
@@ -591,21 +630,34 @@ That is deliberate. The sketches ([`docs/diagrams/`](./docs/diagrams/)) are what
 while designing; the Mermaid versions are what shipped. Keeping both shows the design actually
 moving, and where they still disagree the page says so instead of quietly correcting it.
 
-The product-flow and database sketches match the implementation. Two differences remain, and both
-are stated on their pages:
+Three of the four sketches match the implementation. One difference remains, stated on its page: the
+**API sketch is the core surface, not all of it** — the supporting routes (the two flat
+cross-equipment reads, provisioning, dashboard, health, keyset params) are in the as-built diagram
+below it.
 
-- The **API sketch is the core surface, not all of it** — the supporting routes (the two flat
-  cross-equipment reads, provisioning, dashboard, health, keyset params) are in the as-built
-  diagram below it.
-- The **request/response sketch reads the prior state before opening the transaction.** In the
-  implementation `BEGIN` comes first and the `SELECT` happens inside it, at `SERIALIZABLE` — which
-  is the entire defence described in §4. Drawn the sketch's way, the concurrent double-write bug is
-  back, so the as-built sequence is the one to read.
+Worth recording that the traffic ran **both ways**. Redrawing the request/response sketch to open
+the transaction before the read surfaced two errors in my own as-built diagrams, both settled by
+going back to the service to find out which version was right:
+
+- I had the **business rules before the diff**. In the code `buildProposedChange` applies the
+  permission rules (supervisor-only status change, no self-verify) *before* `diffFields`, and the
+  "a reason is required to amend a `VERIFIED` record" rule fires *after* it, on the far side of the
+  empty-change-set early return.
+- My state machine claimed **`VERIFIED` never returns to `PENDING`**. It does: a supervisor can
+  withdraw a sign-off, which clears `verified_by_id`/`verified_at` and — like any amendment to a
+  verified record — requires a stated reason. The trail keeps the cleared values.
+
+Neither would have been caught by a test, because both diagrams were describing code that was
+already correct. A diagram is the one artifact with no compiler.
 
 The as-built diagrams are Mermaid rather than exported images so they render inline on GitHub, stay
 diffable in review, and cannot silently drift from the schema. Every block is validated by rendering
-it — a diagram that fails to parse is worse than no diagram, and two did before they were fixed.
+it — and rendering also catches what parsing does not: the record-lifecycle state machine parsed
+cleanly while overlapping its own labels into an unreadable mess, which is why its detail now sits
+in a table beside it.
 
 To edit them as shapes rather than text: paste the Mermaid source into
 [mermaid.live](https://mermaid.live) to export SVG/PNG, or use Excalidraw's *Mermaid to Excalidraw*
 import to get editable shapes on a canvas.
+
+
