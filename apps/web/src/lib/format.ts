@@ -17,6 +17,42 @@ export function formatDate(iso: string | null | undefined): string {
   return dateOnly.format(new Date(iso));
 }
 
+/**
+ * A page number out of a URL is user input. `Number("abc")` is `NaN`, which
+ * serialises into the query string as the literal "NaN" and comes back as a
+ * 400 from the API's Zod coercion — so clamp it to a sane page here instead.
+ */
+export function parsePageParam(raw: string | null): number {
+  const page = Number(raw ?? "1");
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+/**
+ * Formats a `YYYY-MM-DD` calendar day. `new Date("2026-09-08")` parses as UTC
+ * midnight, so anywhere west of Greenwich the naive version renders the day
+ * before — this reads the parts and builds a local date instead.
+ */
+export function formatIsoDay(day: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  if (!year || !month || !date) return day;
+  return dateOnly.format(new Date(year, month - 1, date));
+}
+
+const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+
+/**
+ * "yesterday" / "3 days ago" — the secondary line beside an absolute date in a
+ * table, where recency is the thing being scanned for. Rounds to whole days
+ * because that is the granularity a cleaning schedule is read at.
+ */
+export function formatRelativeDays(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return null;
+  const days = Math.round((then.getTime() - Date.now()) / 86_400_000);
+  return relative.format(days, "day");
+}
+
 /** Value for an `<input type="datetime-local">`, which wants local wall time. */
 export function toDateTimeLocalValue(iso: string | Date): string {
   const date = typeof iso === "string" ? new Date(iso) : iso;
@@ -56,4 +92,10 @@ export function formatAuditValue(
     return text.charAt(0) + text.slice(1).toLowerCase();
   }
   return String(value);
+}
+
+/** Two-letter avatar fallback, e.g. "Priya Nair" -> "PN". */
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts.at(-1)?.[0] ?? "")).toUpperCase();
 }

@@ -14,6 +14,14 @@ const SIDEBAR_KEY = "ecl.sidebar-open";
 const PAGE_SIZE_KEY = "ecl.page-size";
 const PAGINATION_MODE_KEY = "ecl.pagination-mode";
 
+/**
+ * Exported so the Preferences page's "reset to defaults" resets to what a
+ * fresh browser actually gets. Duplicating these as literals over there is how
+ * a reset silently starts writing a *non*-default value.
+ */
+export const DEFAULT_PAGE_SIZE = 10;
+export const DEFAULT_PAGINATION_MODE: PaginationMode = "offset";
+
 function readBoolean(key: string, fallback: boolean): boolean {
   try {
     const raw = localStorage.getItem(key);
@@ -40,9 +48,9 @@ export const pageSizePreference = {
   get: (): number => {
     try {
       const raw = Number(localStorage.getItem(PAGE_SIZE_KEY));
-      return Number.isFinite(raw) && raw > 0 ? raw : 10;
+      return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_PAGE_SIZE;
     } catch {
-      return 10;
+      return DEFAULT_PAGE_SIZE;
     }
   },
   set: (size: number): void => {
@@ -58,9 +66,9 @@ export const paginationModePreference = {
   get: (): PaginationMode => {
     try {
       const raw = localStorage.getItem(PAGINATION_MODE_KEY);
-      return raw === "cursor" ? "cursor" : "offset";
+      return raw === "cursor" ? "cursor" : DEFAULT_PAGINATION_MODE;
     } catch {
-      return "offset";
+      return DEFAULT_PAGINATION_MODE;
     }
   },
   set: (mode: PaginationMode): void => {
