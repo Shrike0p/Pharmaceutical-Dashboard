@@ -9,7 +9,7 @@ export function BrandMark({ className }: { className?: string }) {
     <svg viewBox="0 0 32 32" fill="none" className={className} aria-hidden="true">
       <path
         d="M16 2.5 27 9v14l-11 6.5L5 23V9z"
-        stroke="var(--color-navy-700)"
+        stroke="var(--color-brand-700)"
         strokeWidth="2"
         strokeLinejoin="round"
       />

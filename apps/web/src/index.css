@@ -3,28 +3,39 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
+@import "@fontsource-variable/figtree";
 
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Brand palette, sampled directly from brand.png (the navy hexagon / molecular
- * / verification-check mark): navy structure, steel neutrals, an ice-blue tint,
- * and a verification green reserved strictly for the VERIFIED state.
+ * Brand palette: a warm, vibrant coral ("brand") standing in for the old
+ * monochrome navy identity, a warm near-black ("ink") for text, a neutral
+ * charcoal ("shell") for large dark surfaces, warm stone neutrals in place of
+ * the old blue-tinted steel, and a verification green reserved strictly for
+ * the VERIFIED state (unchanged — this is a functional signal, not a theme
+ * choice, see status-badges.tsx).
  *
- * Two text-safe variants exist for steel and verify because the raw brand
- * shades (steel-500, verify-600) fail WCAG AA for small text on white
- * (steel-500 ~4.05:1, verify-600 ~3.02:1 - large-text only). The "-700"
- * variants (~7.1:1, ~4.84:1) are what body/label/badge text should use;
- * the "-500"/"-600" shades stay reserved for icons, borders, dots, and large
- * (18px+/bold) accents where 3:1 is sufficient.
+ * `ink` and `shell` are separate on purpose. A warm near-black reads as a rich
+ * black in *text*, but the same warmth spread over a whole sidebar or hero
+ * band reads plainly brown. Text keeps the warmth; surfaces get the neutral.
+ *
+ * Two shades exist for brand and stone because the vivid shade (brand-600,
+ * stone-500) fails WCAG AA for normal-size text/UI on white (brand-600
+ * ~3.6:1, stone-500 ~4.0:1 — large-text/icon only). The "-700" variants
+ * (~4.6:1, ~7:1) are what buttons, links, and body/label text should use;
+ * the "-600"/"-500" shades stay reserved for large bold numerals, icons on a
+ * tinted chip, decorative washes, and the (non-DOM, canvas-drawn) 3D scene.
  */
 @theme {
-  --color-navy-950: #0b1524;
-  --color-navy-900: #0f2038;
-  --color-navy-700: #28465c;
-  --color-steel-500: #708090;
-  --color-steel-700: #4a5a68;
-  --color-ice-100: #d0e0f0;
+  --color-shell-950: #131418;
+  --color-ink-900: #221d1b;
+  --color-stone-500: #79746d;
+  --color-stone-700: #57534e;
+  --color-brand-50: color-mix(in oklch, #ff385c 8%, white);
+  --color-brand-100: #ffd9e0;
+  --color-brand-300: #ff9fb2;
+  --color-brand-600: #ff385c;
+  --color-brand-700: #e31c5f;
 
   --color-verify-50: color-mix(in oklch, #3fa76a 10%, white);
   --color-verify-600: #3fa76a;
@@ -39,16 +50,37 @@
 }
 
 /*
+ * A tinted, layered shadow system — warm-ink-tinted rather than pure black
+ * (the design skills' explicit ban on harsh black drop-shadows), and built
+ * from three stacked layers (contact / ambient / cast) the way real
+ * elevation reads, rather than one flat blur. Softer and more diffuse than a
+ * typical crisp UI shadow — closer to a warm, low-contrast "floating card"
+ * than a hard-edged drop-shadow.
+ */
+@theme {
+  --shadow-color: 34 29 27; /* ink-900 as r g b, for shadow rgb()/alpha mixing */
+
+  --shadow-xs: 0 1px 2px rgb(var(--shadow-color) / 0.04);
+  --shadow-card: 0 1px 2px rgb(var(--shadow-color) / 0.03),
+    0 6px 14px -2px rgb(var(--shadow-color) / 0.05), 0 18px 40px -14px rgb(var(--shadow-color) / 0.09);
+  --shadow-card-hover: 0 2px 5px rgb(var(--shadow-color) / 0.04),
+    0 10px 24px -4px rgb(var(--shadow-color) / 0.08), 0 28px 56px -16px rgb(var(--shadow-color) / 0.14);
+  --shadow-popover: 0 4px 14px -2px rgb(var(--shadow-color) / 0.08),
+    0 18px 44px -8px rgb(var(--shadow-color) / 0.16);
+}
+
+/*
  * shadcn's derived token ladder (sidebar colors, chart colors, the
  * radius scale). Kept as generated - only --radius-xl is overridden below,
  * as a literal rather than part of the calc() chain, so cards/dialogs/sheets
- * land on 12px while every other control stays on the --radius (8px) base.
- * This is the one documented shape rule: controls 8px, cards 12px, badges
+ * land on 20px while every other control stays on the --radius (10px) base.
+ * This is the one documented shape rule: controls 10px, cards 20px, badges
  * effectively full-pill (a 20px-tall badge at radius-4xl already exceeds half
- * its own height).
+ * its own height). Rounder across the board than a typical dense admin tool
+ * — deliberately, to read as warm/approachable rather than clinical.
  */
 @theme inline {
-  --font-heading: var(--font-sans);
+  --font-heading: "Figtree Variable", sans-serif;
   --font-sans: "Geist Variable", sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -85,47 +117,47 @@
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
-  --radius-xl: 0.75rem; /* literal: cards, dialogs, sheets - not derived */
+  --radius-xl: 1.25rem; /* literal: cards, dialogs, sheets - not derived */
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 :root {
-  /* A hairline-subtle cool-tinted canvas, distinct from card white - gives
+  /* A hairline-subtle warm-tinted canvas, distinct from card white - gives
      cards a sense of resting on the page without reaching for shadows. */
-  --background: #fafbfc;
-  --foreground: var(--color-navy-900);
+  --background: #fffaf8;
+  --foreground: var(--color-ink-900);
   --card: #ffffff;
-  --card-foreground: var(--color-navy-900);
+  --card-foreground: var(--color-ink-900);
   --popover: #ffffff;
-  --popover-foreground: var(--color-navy-900);
-  --primary: var(--color-navy-700);
+  --popover-foreground: var(--color-ink-900);
+  --primary: var(--color-brand-700);
   --primary-foreground: #ffffff;
-  --secondary: #eef2f6;
-  --secondary-foreground: var(--color-navy-900);
-  --muted: #f1f4f7;
-  --muted-foreground: var(--color-steel-700);
-  --accent: var(--color-ice-100);
-  --accent-foreground: var(--color-navy-900);
+  --secondary: #f5eeeb;
+  --secondary-foreground: var(--color-ink-900);
+  --muted: #f7f1ee;
+  --muted-foreground: var(--color-stone-700);
+  --accent: var(--color-brand-100);
+  --accent-foreground: var(--color-brand-700);
   --destructive: var(--color-danger-600);
-  --border: #dce3ea;
-  --input: #dce3ea;
-  --ring: var(--color-navy-700);
-  --chart-1: var(--color-navy-700);
+  --border: #ebe5e1;
+  --input: #ebe5e1;
+  --ring: var(--color-brand-700);
+  --chart-1: var(--color-brand-600);
   --chart-2: var(--color-verify-600);
-  --chart-3: var(--color-steel-500);
+  --chart-3: var(--color-stone-500);
   --chart-4: var(--color-pending-600);
-  --chart-5: var(--color-ice-100);
-  --radius: 0.5rem; /* 8px - drives radius-lg (buttons, inputs, selects) */
+  --chart-5: var(--color-brand-100);
+  --radius: 0.625rem; /* 10px - drives radius-lg (buttons, inputs, selects) */
   --sidebar: #ffffff;
-  --sidebar-foreground: var(--color-navy-900);
-  --sidebar-primary: var(--color-navy-700);
+  --sidebar-foreground: var(--color-ink-900);
+  --sidebar-primary: var(--color-brand-700);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--color-ice-100);
-  --sidebar-accent-foreground: var(--color-navy-900);
-  --sidebar-border: #e7ecf1;
-  --sidebar-ring: var(--color-navy-700);
+  --sidebar-accent: var(--color-brand-100);
+  --sidebar-accent-foreground: var(--color-brand-700);
+  --sidebar-border: #f1ebe7;
+  --sidebar-ring: var(--color-brand-700);
 }
 
 /* Dark mode is out of scope for this pass (see NOTES.md) - left at shadcn's
@@ -197,5 +229,52 @@
      between rows. */
   .tnum {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* The one hover treatment for anything that is both a card and a link
+     (stat tiles, equipment rows-as-cards) — lifts a couple of px and deepens
+     the shadow together, so it reads as one physical object rising rather
+     than two unrelated properties changing. */
+  .lift-on-hover {
+    transition:
+      transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .lift-on-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-hover);
+  }
+  .lift-on-hover:active {
+    transform: translateY(-1px) scale(0.99);
+  }
+
+  /* A stronger version of the same idea for dashboard panels — lifts *and*
+     scales, so a stat tile or chart card reads as coming forward off the page
+     rather than merely brightening. Kept to 1.5% because a card full of text
+     re-rasterises visibly at larger scales. */
+  .pop-on-hover {
+    transition:
+      transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .pop-on-hover:hover {
+    transform: translateY(-3px) scale(1.015);
+    box-shadow: var(--shadow-card-hover);
+  }
+  .pop-on-hover:active {
+    transform: translateY(-1px) scale(1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lift-on-hover,
+    .pop-on-hover {
+      transition: box-shadow 220ms ease;
+    }
+    .lift-on-hover:hover,
+    .pop-on-hover:hover,
+    .lift-on-hover:active,
+    .pop-on-hover:active {
+      transform: none;
+    }
   }
 }
